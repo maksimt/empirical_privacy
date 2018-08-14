@@ -8,8 +8,11 @@ import os
 from math import sqrt, ceil, log
 from scipy.stats import gaussian_kde
 from scipy.integrate import quad
-import lsdd
+from empirical_privacy import lsdd
 from collections import Mapping
+import six
+if six.PY3:
+    from functools import reduce
 
 memory = Memory(cachedir=os.path.expanduser('.'), verbose=0)
 x_axis = None

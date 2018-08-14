@@ -1,9 +1,10 @@
+from __future__ import print_function, unicode_literals
+
 # least-squares density difference estimation
 # Written by M.C. du Plessis
 # http://www.ms.k.u-tokyo.ac.jp/software.html#LSDD
 
 import numpy as np
-import code
 import math
 
 def lsdd(X1,X2,T=None, folds=5, sigma_list=None, lda_list=None):
@@ -90,7 +91,7 @@ def lsdd(X1,X2,T=None, folds=5, sigma_list=None, lda_list=None):
                 score = np.dot(thetah, np.dot(H, thetah)) - 2*np.dot(thetah, hte)
 
                 if math.isnan(score):
-                    print lda_idx, lda, score
+                    print(lda_idx, lda, score)
                     #code.interact(local=dict(globals(), **locals()))
                 score_cv[sigma_idx, lda_idx] = score_cv[sigma_idx, lda_idx] + score
 
