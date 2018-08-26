@@ -1,6 +1,8 @@
 *.pyc
+.cache
 .idea
 .ipynb_checkpoints
 .joblib
 *conflict-*
 *joblib*
+.pytest_cache
