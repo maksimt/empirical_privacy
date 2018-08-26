@@ -1,2 +1,3 @@
 joblib==0.11
 luigi==2.7.6
+pytest

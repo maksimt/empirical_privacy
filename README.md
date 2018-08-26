@@ -12,3 +12,5 @@ docker run -p 8888:8888 -v $(pwd):/emp_priv derivedjupyter:latest
 ```
 2. Navigate to the jupyter-notebook running inside the docker container.
 3. Open Notebooks/1-bit sum.ipynb and run the cells in order from top to bottom.
+
+You may also be interested in my notes on [integrating with PyCharm](docs/Pycharm%20Integration.md).

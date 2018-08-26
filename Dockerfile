@@ -9,3 +9,5 @@ ENV PYTHONPATH "/emp_priv/src/:${PYTHONPATH}"
 COPY requirements.txt /tmp/requirements.txt
 
 RUN pip install -r /tmp/requirements.txt
+
+ENTRYPOINT ["/bin/sh", "-c"]

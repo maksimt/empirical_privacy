@@ -8,7 +8,7 @@ import os
 from math import sqrt, ceil, log
 from scipy.stats import gaussian_kde
 from scipy.integrate import quad
-from src.empirical_privacy import lsdd
+from empirical_privacy import lsdd
 import six
 if six.PY3:
     from functools import reduce
