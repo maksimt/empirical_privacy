@@ -16,21 +16,19 @@ class LoadInputDictMixin(luigi.Task):
         if not _input:
             _input = self.input()
 
-        if type(_input)==list:
-            if len(_input)==1:
-                _input = _input[0]
-            else:
-                raise Exception('load_input_dict: unexpected input format '
-                                '{0}'.format(type(_input)))
-        for k in _input:
-            if type(_input[k]) == dict:
+        if type(_input)==dict:
+            for k in _input:
                 inp[k] = self.load_input_dict(_input[k], all_numpy=all_numpy)
-            else:
-                with _input[k].open() as f:
-                    if not all_numpy:
-                        inp[k] = pickle.load(f)
-                    else:
-                        inp[k] = np.load(f)
+        elif type(_input)==list:
+            inp = []
+            for item in _input:
+                inp.append(self.load_input_dict(item, all_numpy=all_numpy))
+        else:
+            with _input.open() as f:
+                if not all_numpy:
+                    inp = pickle.load(f)
+                else:
+                    inp = np.load(f)
         return inp
 
     def load_completed_reqs(self):
@@ -70,7 +68,10 @@ def _try_delete(path):
 
 class SingleFileMTask(object):
     def output(self):
-        return luigi.LocalTarget(gen_fn_v3(self.base_path, self))
+        return luigi.LocalTarget(
+            gen_fn_v3(self.base_path, self),
+            format=luigi.format.Nop
+        )
 
     def delete_outputs(self):
         _try_delete(self.output().path)
@@ -81,7 +82,8 @@ class DictMTask(object):
         dict_out = {}
         for k in self.outputs:
             dict_out[k] = luigi.LocalTarget(
-                gen_fn_v3(self.base_path, self, suffix=repr(k))
+                gen_fn_v3(self.base_path, self, suffix=repr(k)),
+                format=luigi.format.Nop
             )
         return dict_out
 
@@ -96,7 +98,8 @@ class ListMTask(object):
         list_out = []
         for v in self.outputs:
             list_out.append(luigi.LocalTarget(
-                gen_fn_v3(self.base_path, self)
+                gen_fn_v3(self.base_path, self),
+                format=luigi.format.Nop
             ))
         return list_out
 

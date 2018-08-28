@@ -1,6 +1,13 @@
 import luigi
 import pickle
 from abc import abstractmethod, ABC
+from collections import namedtuple
+from math import ceil, sqrt
+import numpy as np
+
+from sklearn import neighbors
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import accuracy_score, make_scorer
 
 from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
@@ -16,10 +23,122 @@ class EvaluateError(
     validation_set_size = luigi.IntParameter()
     random_seed = luigi.Parameter()
 
-class FitModel():
-    pass
+def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
+    class T(object):
+        def return_fitted_model(self, negative_samples, positive_samples):
+            X0 = negative_samples['X']
+            X1 = positive_samples['X']
+            y0 = negative_samples['y']
+            y1 = positive_samples['y']
+            if len(X0.shape)==1:
+                X0 = X0[:, np.newaxis]
+            if len(X1.shape)==1:
+                X1 = X1[:, np.newaxis]
 
-class GenSamples(
+            X = np.vstack((X0, X1))
+            y = np.concatenate((y0, y1))
+            num_samples = X.size
+            neighbor_method = self.neighbor_method
+            KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
+            if hasattr(neighbor_method, 'lower'):  # string
+                if neighbor_method == 'sqrt':
+                    k = int(ceil(sqrt(num_samples)))
+                    if k % 2 == 0:  # ensure k is odd
+                        k += 1
+                    KNN.n_neighbors = k
+                if neighbor_method == 'cv':
+                    param_grid = \
+                        [{
+                             'n_neighbors': (num_samples ** np.linspace(0.1, 1,
+                                                                        9)).astype(
+                                 np.int)
+                         }]
+                    gs = GridSearchCV(KNN, param_grid,
+                                      scoring=make_scorer(accuracy_score),
+                                      cv=min([3, num_samples]))
+                    gs.fit(X, y)
+                    KNN = gs.best_estimator_
+                if neighbor_method == 'sqrt_random_tiebreak':
+                    k = int(ceil(sqrt(num_samples)))
+                    if k % 2 == 0:  # ensure k is odd
+                        k += 1
+                    KNN.n_neighbors = k
+                    X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
+
+            KNN.fit(X, y)
+            return KNN
+    T.neighbor_method = neighbor_method
+    return T
+
+
+def FitModel(gen_samples_type):
+    class T(_FitModel):
+        pass
+    T.gen_samples_type = gen_samples_type
+    return T
+class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
+        LoadInputDictMixin,
+        luigi.Task,
+        ABC):
+    dataset_settings = luigi.DictParameter()
+    samples_per_class = luigi.IntParameter()
+    random_seed = luigi.Parameter()
+
+    @abstractmethod
+    def return_fitted_model(self, negative_samples, positive_samples):
+        """
+        Given positive and negative samples return a fitted model
+        Parameters
+        """
+        pass
+
+    def requires(self):
+        req = {}
+        req['samples_positive'] = self.gen_samples_type(
+            dataset_settings=self.dataset_settings,
+            num_samples=self.samples_per_class,
+            random_seed=self.random_seed,
+            generate_positive_samples=True
+        )
+        req['samples_negative'] = self.gen_samples_type(
+            dataset_settings=self.dataset_settings,
+            num_samples=self.samples_per_class,
+            random_seed=self.random_seed,
+            generate_positive_samples=False
+        )
+        return req
+
+    def run(self):
+        _input = self.load_input_dict()
+        model = self.return_fitted_model(_input['samples_negative'],
+                                         _input['samples_positive'])
+        with self.output().open('wb') as f:
+            pickle.dump(model, f, 2)
+
+
+
+def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
+               y_concatenator=np.concatenate):
+    """
+    Parameters
+    ----------
+    gen_sample_type : class
+        The class that will be generating samples
+    x_concatenator : function
+        The function that will concatenate a lists of x samples into a X array
+    y_concatenator : function
+        The function that will concatenate a list of y samples into a y array
+    Returns
+    -------
+    T : class
+    """
+    class T(_GenSamples):
+        pass
+    T.gen_sample_type = gen_sample_type
+    T.x_concatenator = x_concatenator
+    T.y_concatenator = y_concatenator
+    return T
+class _GenSamples(
         AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         LoadInputDictMixin,
         luigi.Task,
@@ -30,13 +149,8 @@ class GenSamples(
     generate_positive_samples = luigi.BoolParameter()
     num_samples = luigi.IntParameter()
 
-    @abstractmethod
-    def gen_sample_type(self):
-        pass
-        # return the class of the GenSample task
-
     def requires(self):
-        GS = self.gen_sample_type()
+        GS = self.gen_sample_type
         reqs = [GS(
             dataset_settings = self.dataset_settings,
             random_seed = self.random_seed,
@@ -44,14 +158,18 @@ class GenSamples(
             sample_number = sample_num
 
         )
-            for sample_num in range(self.n_samples)]
+            for sample_num in range(self.num_samples)]
         return {'samples':reqs}
 
     def run(self):
         samples = self.load_input_dict()['samples']
-        with self.output.open('w') as f:
-            pickle.dump(samples)
+        X, y = zip(*samples)
+        X = self.x_concatenator(X)
+        y = self.y_concatenator(y)
+        with self.output().open('w') as f:
+            pickle.dump({'X':X, 'y':y}, f, 2)
 
+Sample = namedtuple('Sample', ['x', 'y'])
 
 class GenSample(
         AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
@@ -65,6 +183,12 @@ class GenSample(
     generate_positive_sample = luigi.BoolParameter()
     sample_number = luigi.IntParameter()
 
+    @classmethod
+    def set_simple_random_seed(cls, sample_number, random_seed):
+        seed_val = hash('sample' + str(sample_number) + 'seed' + random_seed) \
+                   % 4294967296
+        np.random.seed(seed_val)
+
     @abstractmethod
     def gen_sample(self, dataset_settings, generate_positive_sample,
                    sample_number, random_seed):
@@ -77,10 +201,8 @@ class GenSample(
            sample_number=self.sample_number,
            random_seed=self.random_seed
            )
-        with self.output().open('w') as f:
-            pickle.dump({'x':x, 'y':y}, 2)
-
-
+        with self.output().open('wb') as f:
+            pickle.dump(Sample(x, y), f, 2)
 
 
 

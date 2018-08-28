@@ -6,3 +6,4 @@
 *conflict-*
 *joblib*
 *.pytest_cache*
+*luigi_completed*
