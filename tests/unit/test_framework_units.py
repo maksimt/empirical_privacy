@@ -8,7 +8,7 @@ from empirical_privacy import one_bit_sum
 
 @pytest.fixture()
 def ds_rs():
-    return {'dataset_settings': {'n_trials':100, 'prob_success':0.3,
+    return {'dataset_settings': {'n_trials':40, 'prob_success':0.5,
                                     'gen_distr_type':'binom'},
             'random_seed':'1338'}
 
@@ -34,5 +34,14 @@ def test_fit_model_one_bit(ds_rs):
     FMTask = one_bit_sum.FitKNNModelOneBit(samples_per_class=11, **ds_rs)
     luigi.build([FMTask], local_scheduler=True, workers=1, log_level='ERROR')
     with FMTask.output().open() as f:
-        model = pickle.load(f)
-    assert(hasattr(model, 'fit'))
+        KNN = pickle.load(f)
+    assert(hasattr(KNN, 'model'))
+
+def test_compute_stat_dist(ds_rs):
+    ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=200,
+                                          validation_set_size=500,
+                                          **ds_rs)
+    luigi.build([ESD], local_scheduler=True, workers=1, log_level='ERROR')
+    with ESD.output().open() as f:
+        sd = pickle.load(f)['statistical_distance']
+    assert(sd > 0 and sd < 0.3)

@@ -3,7 +3,7 @@ from scipy.stats import binom, norm
 from math import sqrt
 
 from luigi_utils.sampling_framework import GenSamples, GenSample, FitModel,\
-    KNNFitterMixin
+    KNNFitterMixin, EvaluateStatisticalDistance
 
 class GenSampleOneBitSum(GenSample):
     def gen_sample(self, dataset_settings, generate_positive_sample,
@@ -38,4 +38,10 @@ class GenSamplesOneBit(GenSamples(GenSampleOneBitSum)):
     pass
 
 class FitKNNModelOneBit(KNNFitterMixin(), FitModel(GenSamplesOneBit)):
+    pass
+
+class EvaluateKNNOneBitSD(EvaluateStatisticalDistance(
+    samplegen=GenSamplesOneBit,
+    model=FitKNNModelOneBit
+)):
     pass

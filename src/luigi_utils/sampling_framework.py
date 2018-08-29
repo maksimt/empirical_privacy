@@ -12,7 +12,14 @@ from sklearn.metrics import accuracy_score, make_scorer
 from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 
-class EvaluateError(
+
+def EvaluateStatisticalDistance(samplegen, model):
+    class T(_EvaluateStatisticalDistance):
+        pass
+    T.samplegen = samplegen
+    T.model = model
+    return T
+class _EvaluateStatisticalDistance(
         AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         LoadInputDictMixin,
         luigi.Task,
@@ -23,17 +30,70 @@ class EvaluateError(
     validation_set_size = luigi.IntParameter()
     random_seed = luigi.Parameter()
 
+    def requires(self):
+        reqs = {}
+        reqs['model'] = self.model(
+            dataset_settings = self.dataset_settings,
+            samples_per_class = int(round(self.training_set_size/2)),
+            random_seed = self.random_seed
+        )
+        reqs['samples_positive'] = self.samplegen(
+            dataset_settings=self.dataset_settings,
+            num_samples=int(round(self.validation_set_size/2)),
+            random_seed=self.random_seed+'validation',
+            generate_positive_samples=True
+        )
+        reqs['samples_negative'] = self.samplegen(
+            dataset_settings=self.dataset_settings,
+            num_samples=int(round(self.validation_set_size/2)),
+            random_seed=self.random_seed+'validation',
+            generate_positive_samples=False
+        )
+        return reqs
+
+    def run(self):
+        _input = self.load_input_dict()
+        sd = _input['model'].compute_statistical_distance(
+            _input['samples_positive'],
+            _input['samples_negative']
+        )
+        with self.output().open('wb') as f:
+            pickle.dump({'statistical_distance':sd}, f, 0)
+
+def _ensure_2dim(X0, X1):
+    # sklearn wants X to have dimension>=2
+    if len(X0.shape) == 1:
+        X0 = X0[:, np.newaxis]
+    if len(X1.shape) == 1:
+        X1 = X1[:, np.newaxis]
+    return X0, X1
+
+def _stack_samples(samples):
+    X, y = None, None
+    for sample in samples:
+        Xs, ys = sample['X'], sample['y']
+        if X is None:
+            X = Xs
+        else:
+            X, Xs = _ensure_2dim(X, Xs)
+            X = np.vstack((X, Xs))
+        if y is None:
+            y = ys
+        else:
+            y = np.concatenate((y, ys))
+    return X, y
+
 def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
+
     class T(object):
-        def return_fitted_model(self, negative_samples, positive_samples):
+
+        def fit(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
             X1 = positive_samples['X']
             y0 = negative_samples['y']
             y1 = positive_samples['y']
-            if len(X0.shape)==1:
-                X0 = X0[:, np.newaxis]
-            if len(X1.shape)==1:
-                X1 = X1[:, np.newaxis]
+
+            X0, X1 = _ensure_2dim(X0, X1)
 
             X = np.vstack((X0, X1))
             y = np.concatenate((y0, y1))
@@ -66,7 +126,13 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
                     X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
 
             KNN.fit(X, y)
-            return KNN
+            self.model = KNN
+
+        def compute_statistical_distance(self, *samples):
+            assert self.model is not None, 'Model must be fitted first'
+            X, y = _stack_samples(samples)
+            return self.model.score(X, y) - 0.5
+
     T.neighbor_method = neighbor_method
     return T
 
@@ -75,6 +141,7 @@ def FitModel(gen_samples_type):
     class T(_FitModel):
         pass
     T.gen_samples_type = gen_samples_type
+    T.model = None
     return T
 class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         LoadInputDictMixin,
@@ -85,13 +152,26 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     random_seed = luigi.Parameter()
 
     @abstractmethod
-    def return_fitted_model(self, negative_samples, positive_samples):
+    def fit(self, negative_samples, positive_samples):
         """
         Given positive and negative samples return a fitted model
         Parameters
         """
         pass
 
+    @abstractmethod
+    def compute_statistical_distance(self, *samples):
+        """
+        Parameters
+        ----------
+        samples : list of {'X':array, 'y':array}
+            The samples on which we should compute statistical distance
+        Returns
+        -------
+        float : the statistical distance
+
+        """
+        pass
     def requires(self):
         req = {}
         req['samples_positive'] = self.gen_samples_type(
@@ -110,10 +190,9 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
 
     def run(self):
         _input = self.load_input_dict()
-        model = self.return_fitted_model(_input['samples_negative'],
-                                         _input['samples_positive'])
+        self.fit(_input['samples_negative'], _input['samples_positive'])
         with self.output().open('wb') as f:
-            pickle.dump(model, f, 2)
+            pickle.dump(self, f, 2)
 
 
 
