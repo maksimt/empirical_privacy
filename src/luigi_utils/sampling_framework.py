@@ -4,6 +4,8 @@ from abc import abstractmethod, ABC
 from collections import namedtuple
 from math import ceil, sqrt
 import numpy as np
+import itertools
+
 
 from sklearn import neighbors
 from sklearn.model_selection import GridSearchCV
@@ -13,7 +15,73 @@ from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 
 
-def EvaluateStatisticalDistance(samplegen, model):
+def ComputeConvergenceCurve(
+        compute_stat_dist: 'EvaluateStatisticalDistance') \
+        -> '_ComputeConvergenceCurve':
+    class T(_ComputeConvergenceCurve):
+        pass
+    T.compute_stat_dist = compute_stat_dist
+    return T
+
+_CP = namedtuple('CurvePoint', ['trial', 'training_set_size'])
+
+class _ComputeConvergenceCurve(
+    AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
+    LoadInputDictMixin,
+    luigi.Task,
+    ABC
+):
+    n_trials_per_training_set_size = luigi.IntParameter()
+    n_max = luigi.IntParameter()
+    n_steps = luigi.IntParameter()
+
+    dataset_settings = luigi.DictParameter()
+    validation_set_size = luigi.IntParameter(default=200)
+
+    @property
+    def _training_set_sizes(self):
+        return np.logspace(start=1,
+                            stop=np.log10(self.n_max),
+                            num=self.n_steps).\
+                                astype(np.int)  # round and convert to int
+
+    def requires(self):
+        reqs = {}
+
+        for training_set_size, trial in itertools.product(
+            self._training_set_sizes, range(self.n_trials_per_training_set_size)
+        ):
+            reqs[_CP(trial, training_set_size)] = \
+                self.compute_stat_dist(
+                    dataset_settings = self.dataset_settings,
+                    training_set_size = training_set_size,
+                    validation_set_size = self.validation_set_size,
+                    random_seed = 'trial{}'.format(trial)
+                )
+        return reqs
+
+    def run(self):
+        _inputs = self.load_input_dict()
+        tss = self._training_set_sizes
+        sd_matrix = np.empty((self.n_trials_per_training_set_size, self.n_steps))
+
+        for training_set_size, trial in itertools.product(
+                tss,
+                range(self.n_trials_per_training_set_size)
+            ):
+            sd_matrix[trial, np.argwhere(tss==training_set_size)[0,0]] = \
+                _inputs[_CP(trial, training_set_size)]['statistical_distance']
+
+        with self.output().open('wb') as f:
+            pickle.dump({'sd_matrix':sd_matrix, 'training_set_sizes':tss}, f, 2)
+
+
+
+
+
+def EvaluateStatisticalDistance(samplegen: '_GenSamples',
+                                model: '_FitModel')\
+        -> '_EvaluateStatisticalDistance':
     class T(_EvaluateStatisticalDistance):
         pass
     T.samplegen = samplegen
@@ -264,8 +332,9 @@ class GenSample(
 
     @classmethod
     def set_simple_random_seed(cls, sample_number, random_seed):
-        seed_val = hash('sample' + str(sample_number) + 'seed' + random_seed) \
-                   % 4294967296
+        seed_val = hash('{seed}sample{s_num}'.format(seed=random_seed,
+                                                     s_num=sample_number))
+        seed_val %= 4294967296
         np.random.seed(seed_val)
 
     @abstractmethod

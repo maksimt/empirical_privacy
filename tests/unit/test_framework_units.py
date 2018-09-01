@@ -45,3 +45,17 @@ def test_compute_stat_dist(ds_rs):
     with ESD.output().open() as f:
         sd = pickle.load(f)['statistical_distance']
     assert(sd > 0 and sd < 0.3)
+
+def test_compute_convergence_curve(ds_rs):
+    CC = one_bit_sum.ComputeOneBitKNNConvergence(
+        n_trials_per_training_set_size=3,
+        n_max=33,
+        n_steps=4,
+        dataset_settings = ds_rs['dataset_settings'],
+        validation_set_size = 10
+    )
+    luigi.build([CC], local_scheduler=True, workers=8, log_level='ERROR')
+    with CC.output().open() as f:
+        res = pickle.load(f)
+    assert res['sd_matrix'].shape == (3,4)
+    print(res['sd_matrix'])
