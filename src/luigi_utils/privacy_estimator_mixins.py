@@ -9,12 +9,14 @@ from scipy.integrate import quad
 
 
 def ExpectationFitterMixin(bandwidth_method = None):
-    class T(DensityEstFitterMixin(bandwidth_method)):  # picks up the fit method
-        def compute_classification_accuracy(self, *samples):
-            assert self.f0 is not None, 'Model must be fitted first'
+    class T(DensityEstFitterMixin(bandwidth_method)):  # picks up the fit_model method
+        @classmethod
+        def compute_classification_accuracy(self, model=None, *samples):
+            assert model is not None, 'Model must be fitted first'
+            f0, f1 = model['f0'], model['f1']
             X, y = _stack_samples(samples)
-            f0x = self.f0(X)
-            f1x = self.f1(X)
+            f0x = f0(X)
+            f1x = f1(X)
             denom = (f0x + f1x + np.spacing(1))
             numer = np.abs(f0x - f1x)
             return 0.5 + 0.5 * np.mean(numer / denom)
@@ -24,7 +26,7 @@ def ExpectationFitterMixin(bandwidth_method = None):
 
 def DensityEstFitterMixin(bandwidth_method = None):
     class T(object):
-        def fit(self, negative_samples, positive_samples):
+        def fit_model(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
             X1 = positive_samples['X']
             y0 = negative_samples['y']
@@ -41,15 +43,17 @@ def DensityEstFitterMixin(bandwidth_method = None):
             if hasattr(self.bandwidth_method, '__add__'):  # float:
                 bw = num_samples ** (1 - self.bandwidth_method)
 
-            self.f0 = gaussian_kde(X0, bw_method=bw)
-            self.f1 = gaussian_kde(X1, bw_method=bw)
+            f0 = gaussian_kde(X0, bw_method=bw)
+            f1 = gaussian_kde(X1, bw_method=bw)
+            return {'f0':f0, 'f1':f1}
 
-        def compute_classification_accuracy(self, *samples):
-            assert self.f0 is not None, 'Model must be fitted first'
+        @classmethod
+        def compute_classification_accuracy(cls, model=None, *samples):
+            assert model is not None, 'Model must be fitted first'
+            f0, f1 = model['f0'], model['f1']
             return 0.5 + \
                    0.5 * 0.5 * \
-                   quad(lambda x: np.abs(self.f0(x) - self.f1(x)), -np.inf,
-                        np.inf)[0]
+                   quad(lambda x: np.abs(f0(x) - f1(x)), -np.inf, np.inf)[0]
     T.bandwidth_method = bandwidth_method
 
     #TODO: Unclear how to handle validation set here
@@ -59,7 +63,7 @@ def DensityEstFitterMixin(bandwidth_method = None):
 
 def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
     class T(object):
-        def fit(self, negative_samples, positive_samples):
+        def fit_model(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
             X1 = positive_samples['X']
             y0 = negative_samples['y']
@@ -97,13 +101,13 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
                     X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
 
             KNN.fit(X, y)
-            #self.in_sample_score = KNN.score(X, y)
-            self.model = KNN
+            return {'KNN':KNN}
 
-        def compute_classification_accuracy(self, *samples):
-            assert self.model is not None, 'Model must be fitted first'
+        @classmethod
+        def compute_classification_accuracy(cls, model=None, *samples):
+            assert model is not None, 'Model must be fitted first'
             X, y = _stack_samples(samples)
-            return self.model.score(X, y)
+            return model['KNN'].score(X, y)
 
     T.neighbor_method = neighbor_method
     return T

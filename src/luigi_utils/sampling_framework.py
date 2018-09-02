@@ -113,7 +113,8 @@ class _EvaluateStatisticalDistance(
 
     def run(self):
         _input = self.load_input_dict()
-        sd = _input['model'].compute_classification_accuracy(
+        sd = self.model.compute_classification_accuracy(
+            _input['model'],
             _input['samples_positive'],
             _input['samples_negative']
         )
@@ -136,18 +137,20 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     random_seed = luigi.Parameter()
 
     @abstractmethod
-    def fit(self, negative_samples, positive_samples):
+    def fit_model(self, negative_samples, positive_samples):
         """
         Given positive and negative samples return a fitted model
         Parameters
         """
         pass
 
-    @abstractmethod
-    def compute_classification_accuracy(self, *samples):
+    @classmethod
+    def compute_classification_accuracy(cls, model, *samples):
         """
         Parameters
         ----------
+        model : dict
+            All the data that represents a fitted model
         samples : list of {'X':array, 'y':array}
             The samples on which we should compute statistical distance
         Returns
@@ -155,7 +158,8 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         float : the statistical distance
 
         """
-        pass
+        raise NotImplementedError()
+
     def requires(self):
         req = {}
         req['samples_positive'] = self.gen_samples_type(
@@ -174,10 +178,10 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
 
     def run(self):
         _input = self.load_input_dict()
-        self.fit(_input['samples_negative'], _input['samples_positive'])
+        model = self.fit_model(_input['samples_negative'],
+                               _input['samples_positive'])
         with self.output().open('wb') as f:
-            dill.dump(self, f, 2)
-
+            dill.dump(model, f, 2)
 
 
 def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
@@ -403,7 +407,7 @@ class GenSample(
 #                                          },
 #                                          max_iter=33
 #                                          )
-#                 soln[kv] = Model.fit(X[kv])
+#                 soln[kv] = Model.fit_model(X[kv])
 #                 soln[kv].sparsify()
 #
 #             if self.problem_settings['type'] == "SVD1":
@@ -443,7 +447,7 @@ class GenSample(
 #                 Mod = BlockIterSVD(k=self.problem_settings['k'],
 #                                    eps_diff_priv=self.problem_settings[
 #                                        'eps'])
-#                 Mod = Mod.fit(X[kv])
+#                 Mod = Mod.fit_model(X[kv])
 #                 S = Mod.s_
 #                 Vt = Mod.V_.T
 #

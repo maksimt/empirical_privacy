@@ -3,6 +3,7 @@ import luigi
 import pickle
 import logging
 import numpy as np
+import time
 
 from empirical_privacy import one_bit_sum_joblib
 from empirical_privacy import one_bit_sum
@@ -37,8 +38,8 @@ def test_fit_model_one_bit(ds_rs):
     FMTask = one_bit_sum.FitKNNModelOneBit(samples_per_class=11, **ds_rs)
     luigi.build([FMTask], local_scheduler=True, workers=1, log_level='ERROR')
     with FMTask.output().open() as f:
-        KNN = pickle.load(f)
-    assert(hasattr(KNN, 'model'))
+        model = pickle.load(f)
+    assert('KNN' in model)
 
 def test_compute_stat_dist(ds_rs):
     ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=200,
@@ -71,12 +72,27 @@ def simple_ccc(ccc_kwargs):
 def test_compute_convergence_curve(simple_ccc):
     assert simple_ccc['sd_matrix'].shape == (3,4)
 
-def test_ccc_pipeline_builder( simple_ccc, ccc_kwargs):
+
+@pytest.fixture(scope='session')
+def built_ccc(ccc_kwargs):
     CCC = build_convergence_curve_pipeline2(one_bit_sum.GenSampleOneBitSum)
     CCC2_inst = CCC(**ccc_kwargs)
+    start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
+    cputime = time.clock() - start_clock
     with CCC2_inst.output().open() as f:
         res = pickle.load(f)
-    print(res['sd_matrix'])
-    print(simple_ccc['sd_matrix'])
-    assert np.allclose(res['sd_matrix'], simple_ccc['sd_matrix'])
+    return {'res':res, 'cputime':cputime}
+
+def test_ccc_pipeline_builder( simple_ccc, built_ccc):
+    assert np.allclose(built_ccc['res']['sd_matrix'], simple_ccc['sd_matrix'])
+
+
+def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
+    AbraCadabra = build_convergence_curve_pipeline2(
+        one_bit_sum.GenSampleOneBitSum)
+    AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
+    start_clock = time.clock()
+    luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8, log_level='ERROR')
+    cputime = time.clock() - start_clock
+    assert cputime < 1/100.0 * built_ccc['cputime']
