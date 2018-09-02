@@ -199,7 +199,7 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
         def compute_statistical_distance(self, *samples):
             assert self.model is not None, 'Model must be fitted first'
             X, y = _stack_samples(samples)
-            return self.model.score(X, y) - 0.5
+            return self.model.score(X, y)
 
     T.neighbor_method = neighbor_method
     return T
@@ -265,7 +265,7 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
 
 
 def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
-               y_concatenator=np.concatenate):
+               y_concatenator=np.concatenate, generate_in_batch=False):
     """
     Parameters
     ----------
@@ -275,6 +275,10 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
         The function that will concatenate a lists of x samples into a X array
     y_concatenator : function
         The function that will concatenate a list of y samples into a y array
+    generate_in_batch : bool, optional (default False)
+        Generate the entire batch of samples directly without spawning subtasks
+        Can improve performance if the IO cost of saving/loading a sample is
+        higher than computing it.
     Returns
     -------
     T : class
@@ -284,6 +288,7 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
     T.gen_sample_type = gen_sample_type
     T.x_concatenator = x_concatenator
     T.y_concatenator = y_concatenator
+    T.generate_in_batch = generate_in_batch
     return T
 class _GenSamples(
         AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
@@ -296,23 +301,40 @@ class _GenSamples(
     generate_positive_samples = luigi.BoolParameter()
     num_samples = luigi.IntParameter()
 
-    def requires(self):
-        GS = self.gen_sample_type
-        reqs = [GS(
-            dataset_settings = self.dataset_settings,
-            random_seed = self.random_seed,
-            generate_positive_sample = self.generate_positive_samples,
-            sample_number = sample_num
 
-        )
-            for sample_num in range(self.num_samples)]
-        return {'samples':reqs}
+
+
+    def requires(self):
+        if not self.generate_in_batch:
+            GS = self.gen_sample_type
+            reqs = [GS(
+                dataset_settings = self.dataset_settings,
+                random_seed = self.random_seed,
+                generate_positive_sample = self.generate_positive_samples,
+                sample_number = sample_num
+
+            )
+                for sample_num in range(self.num_samples)]
+            return {'samples':reqs}
+        return {}
 
     def run(self):
-        samples = self.load_input_dict()['samples']
+        if not self.generate_in_batch:
+            samples = self.load_input_dict()['samples']
+        else:  #self.generate_in_batch
+            f_GS = self.gen_sample_type.gen_sample
+
+            samples = [f_GS(dataset_settings=self.dataset_settings,
+                            generate_positive_sample=self.generate_positive_samples,
+                            sample_number = sn,
+                            random_seed = self.random_seed) for sn in \
+                            range(self.num_samples)]
+
+
         X, y = zip(*samples)
         X = self.x_concatenator(X)
         y = self.y_concatenator(y)
+
         with self.output().open('w') as f:
             pickle.dump({'X':X, 'y':y}, f, 2)
 
@@ -330,6 +352,8 @@ class GenSample(
     generate_positive_sample = luigi.BoolParameter()
     sample_number = luigi.IntParameter()
 
+
+
     @classmethod
     def set_simple_random_seed(cls, sample_number, random_seed):
         seed_val = hash('{seed}sample{s_num}'.format(seed=random_seed,
@@ -337,10 +361,11 @@ class GenSample(
         seed_val %= 4294967296
         np.random.seed(seed_val)
 
-    @abstractmethod
-    def gen_sample(self, dataset_settings, generate_positive_sample,
+    @classmethod
+    def gen_sample(cls, dataset_settings, generate_positive_sample,
                    sample_number, random_seed):
-        pass
+        raise NotImplementedError('This method needs to be implemented by a '
+                                  'subclass of GenSample.')
         # return x, y
 
     def run(self):

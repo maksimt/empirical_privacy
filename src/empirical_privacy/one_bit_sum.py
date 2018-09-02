@@ -6,7 +6,8 @@ from luigi_utils.sampling_framework import GenSamples, GenSample, FitModel,\
     KNNFitterMixin, EvaluateStatisticalDistance, ComputeConvergenceCurve
 
 class GenSampleOneBitSum(GenSample):
-    def gen_sample(self, dataset_settings, generate_positive_sample,
+    @classmethod
+    def gen_sample(cls, dataset_settings, generate_positive_sample,
                    sample_number: int, random_seed: str):
 
         GenSample.set_simple_random_seed(sample_number, random_seed)
@@ -34,7 +35,7 @@ class GenSampleOneBitSum(GenSample):
         else:
             return X0, y0
 
-class GenSamplesOneBit(GenSamples(GenSampleOneBitSum)):
+class GenSamplesOneBit(GenSamples(GenSampleOneBitSum, generate_in_batch=True)):
     pass
 
 class FitKNNModelOneBit(KNNFitterMixin(), FitModel(GenSamplesOneBit)):
@@ -48,3 +49,5 @@ class EvaluateKNNOneBitSD(EvaluateStatisticalDistance(
 
 class ComputeOneBitKNNConvergence(ComputeConvergenceCurve(EvaluateKNNOneBitSD)):
     pass
+
+# TODO: create a make_pipeline helper
