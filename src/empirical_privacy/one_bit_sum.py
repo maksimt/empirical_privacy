@@ -2,8 +2,10 @@ import numpy as np
 from scipy.stats import binom, norm
 from math import sqrt
 
-from luigi_utils.sampling_framework import GenSamples, GenSample, FitModel,\
-    KNNFitterMixin, EvaluateStatisticalDistance, ComputeConvergenceCurve
+from luigi_utils.sampling_framework import GenSamples, GenSample, FitModel, \
+    EvaluateStatisticalDistance, ComputeConvergenceCurve
+from luigi_utils.privacy_estimator_mixins import KNNFitterMixin
+
 
 class GenSampleOneBitSum(GenSample):
     @classmethod

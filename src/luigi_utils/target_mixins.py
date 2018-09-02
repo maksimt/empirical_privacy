@@ -1,5 +1,5 @@
 import collections
-import pickle
+import dill
 import os
 
 import luigi
@@ -26,7 +26,7 @@ class LoadInputDictMixin(luigi.Task):
         else:
             with _input.open() as f:
                 if not all_numpy:
-                    inp = pickle.load(f)
+                    inp = dill.load(f)
                 else:
                     inp = np.load(f)
         return inp

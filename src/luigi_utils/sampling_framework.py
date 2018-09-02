@@ -1,15 +1,9 @@
 import luigi
-import pickle
+import dill
 from abc import abstractmethod, ABC
 from collections import namedtuple
-from math import ceil, sqrt
 import numpy as np
 import itertools
-
-
-from sklearn import neighbors
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, make_scorer
 
 from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
@@ -24,6 +18,7 @@ def ComputeConvergenceCurve(
     return T
 
 _CP = namedtuple('CurvePoint', ['trial', 'training_set_size'])
+
 
 class _ComputeConvergenceCurve(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
@@ -73,10 +68,7 @@ class _ComputeConvergenceCurve(
                 _inputs[_CP(trial, training_set_size)]['statistical_distance']
 
         with self.output().open('wb') as f:
-            pickle.dump({'sd_matrix':sd_matrix, 'training_set_sizes':tss}, f, 2)
-
-
-
+            dill.dump({'sd_matrix':sd_matrix, 'training_set_sizes':tss}, f, 2)
 
 
 def EvaluateStatisticalDistance(samplegen: '_GenSamples',
@@ -121,88 +113,12 @@ class _EvaluateStatisticalDistance(
 
     def run(self):
         _input = self.load_input_dict()
-        sd = _input['model'].compute_statistical_distance(
+        sd = _input['model'].compute_classification_accuracy(
             _input['samples_positive'],
             _input['samples_negative']
         )
         with self.output().open('wb') as f:
-            pickle.dump({'statistical_distance':sd}, f, 0)
-
-def _ensure_2dim(X0, X1):
-    # sklearn wants X to have dimension>=2
-    if len(X0.shape) == 1:
-        X0 = X0[:, np.newaxis]
-    if len(X1.shape) == 1:
-        X1 = X1[:, np.newaxis]
-    return X0, X1
-
-def _stack_samples(samples):
-    X, y = None, None
-    for sample in samples:
-        Xs, ys = sample['X'], sample['y']
-        if X is None:
-            X = Xs
-        else:
-            X, Xs = _ensure_2dim(X, Xs)
-            X = np.vstack((X, Xs))
-        if y is None:
-            y = ys
-        else:
-            y = np.concatenate((y, ys))
-    return X, y
-
-def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
-
-    class T(object):
-
-        def fit(self, negative_samples, positive_samples):
-            X0 = negative_samples['X']
-            X1 = positive_samples['X']
-            y0 = negative_samples['y']
-            y1 = positive_samples['y']
-
-            X0, X1 = _ensure_2dim(X0, X1)
-
-            X = np.vstack((X0, X1))
-            y = np.concatenate((y0, y1))
-            num_samples = X.size
-            neighbor_method = self.neighbor_method
-            KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
-            if hasattr(neighbor_method, 'lower'):  # string
-                if neighbor_method == 'sqrt':
-                    k = int(ceil(sqrt(num_samples)))
-                    if k % 2 == 0:  # ensure k is odd
-                        k += 1
-                    KNN.n_neighbors = k
-                if neighbor_method == 'cv':
-                    param_grid = \
-                        [{
-                             'n_neighbors': (num_samples ** np.linspace(0.1, 1,
-                                                                        9)).astype(
-                                 np.int)
-                         }]
-                    gs = GridSearchCV(KNN, param_grid,
-                                      scoring=make_scorer(accuracy_score),
-                                      cv=min([3, num_samples]))
-                    gs.fit(X, y)
-                    KNN = gs.best_estimator_
-                if neighbor_method == 'sqrt_random_tiebreak':
-                    k = int(ceil(sqrt(num_samples)))
-                    if k % 2 == 0:  # ensure k is odd
-                        k += 1
-                    KNN.n_neighbors = k
-                    X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
-
-            KNN.fit(X, y)
-            self.model = KNN
-
-        def compute_statistical_distance(self, *samples):
-            assert self.model is not None, 'Model must be fitted first'
-            X, y = _stack_samples(samples)
-            return self.model.score(X, y)
-
-    T.neighbor_method = neighbor_method
-    return T
+            dill.dump({'statistical_distance':sd}, f, 0)
 
 
 def FitModel(gen_samples_type):
@@ -228,7 +144,7 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         pass
 
     @abstractmethod
-    def compute_statistical_distance(self, *samples):
+    def compute_classification_accuracy(self, *samples):
         """
         Parameters
         ----------
@@ -260,7 +176,7 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         _input = self.load_input_dict()
         self.fit(_input['samples_negative'], _input['samples_positive'])
         with self.output().open('wb') as f:
-            pickle.dump(self, f, 2)
+            dill.dump(self, f, 2)
 
 
 
@@ -336,7 +252,7 @@ class _GenSamples(
         y = self.y_concatenator(y)
 
         with self.output().open('w') as f:
-            pickle.dump({'X':X, 'y':y}, f, 2)
+            dill.dump({'X':X, 'y':y}, f, 2)
 
 Sample = namedtuple('Sample', ['x', 'y'])
 
@@ -375,7 +291,7 @@ class GenSample(
            random_seed=self.random_seed
            )
         with self.output().open('wb') as f:
-            pickle.dump(Sample(x, y), f, 2)
+            dill.dump(Sample(x, y), f, 2)
 
 
 
