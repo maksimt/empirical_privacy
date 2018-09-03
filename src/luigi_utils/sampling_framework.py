@@ -208,9 +208,12 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
     gen_sample_type : class
         The class that will be generating samples
     x_concatenator : function
-        The function that will concatenate a lists of x samples into a X array
+        Takes tuples of the form (x1, x2) where xi are either elements or
+        outputs of x_concatenator and concatenates them. E.g.
+        np.conconcatenate, np.vstack or np.hstack
     y_concatenator : function
-        The function that will concatenate a list of y samples into a y array
+        Takes tuples of the form (y1, y2) where yi are either elements or
+        outputs of x_concatenator and concatenates them.
     generate_in_batch : bool, optional (default False)
         Generate the entire batch of samples directly without spawning subtasks
         Can improve performance if the IO cost of saving/loading a sample is
@@ -253,23 +256,37 @@ class _GenSamples(
             )
                 for sample_num in range(self.num_samples)]
             return {'samples': reqs}
+        if self.num_samples > MIN_SAMPLES:
+            self.n_prev = np.floor(self.num_samples / 2.0).astype(int)
+            return {'prev': self.__class__(  # because the class will have
+                # been specialized by the factory GenSamples()
+                dataset_settings = self.dataset_settings,
+                random_seed = self.random_seed,
+                generate_positive_samples = self.generate_positive_samples,
+                num_samples = self.n_prev
+            )}
+        self.n_prev = 0
         return {}
 
     def run(self):
         if not self.generate_in_batch:
             samples = self.load_input_dict()['samples']
         else:  # self.generate_in_batch
+            prev = {'X': np.array([]), 'y': np.array([])}
+            if self.num_samples > MIN_SAMPLES:
+                prev = self.load_input_dict()['prev']
+
             f_GS = self.gen_sample_type.gen_sample
 
             samples = [f_GS(dataset_settings=self.dataset_settings,
                             generate_positive_sample=self.generate_positive_samples,
                             sample_number=sn,
                             random_seed=self.random_seed) for sn in \
-                       range(self.num_samples)]
+                       range(self.n_prev, self.num_samples)]
 
         X, y = zip(*samples)
-        X = self.x_concatenator(X)
-        y = self.y_concatenator(y)
+        X = self.x_concatenator((prev['X'], self.x_concatenator(X)))
+        y = self.y_concatenator((prev['y'], self.y_concatenator(y)))
 
         with self.output().open('w') as f:
             dill.dump({'X': X, 'y': y}, f, 2)
