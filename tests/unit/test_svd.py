@@ -1,5 +1,7 @@
 import pytest
-from empirical_privacy.row_distributed_svd import gen_attacker_and_defender_indices
+from empirical_privacy.row_distributed_common import \
+    gen_attacker_and_defender_indices
+
 
 def test_gen_indices():
     doc_ind = 7
