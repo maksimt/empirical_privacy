@@ -11,39 +11,9 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
                                      fitter = 'knn',
                                      ) -> ComputeConvergenceCurve:
     gs_name = GenSampleType.__name__
-    GSs = type(gs_name+'GenSamples',
-               (GenSamples(GenSampleType, generate_in_batch=generate_in_batch),)
-               , {}
-               )
 
-    if fitter=='knn':
-        F = KNNFitterMixin
-    elif fitter=='density':
-        F = DensityEstFitterMixin
-    elif fitter=='expectation':
-        F = ExpectationFitterMixin
-
-    FM = type(gs_name+'FitModel'+fitter,
-              (F(), FitModel(GSs)), {}
-              )
-
-    ESD = type(gs_name+'EvaluateStatisticalDistance'+fitter,
-               (EvaluateStatisticalDistance(samplegen=GSs, model=FM),), {}
-               )
-
-    CCC = type(gs_name+'ComputeConvergenceCurve'+fitter,
-               (ComputeConvergenceCurve(ESD),), {}
-               )
-
-    return CCC
-
-def build_convergence_curve_pipeline2(GenSampleType: GenSample,
-                                     generate_in_batch=False,
-                                     fitter = 'knn',
-                                     ) -> ComputeConvergenceCurve:
-    gs_name = GenSampleType.__name__
-
-    class GSs(GenSamples(GenSampleType, generate_in_batch=True)):
+    class GSs(GenSamples(GenSampleType,
+                         generate_in_batch=generate_in_batch)):
         pass
     GSs.__name__ = gs_name+'GenSamples'
 

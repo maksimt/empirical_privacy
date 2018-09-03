@@ -15,6 +15,7 @@ def ExpectationFitterMixin(bandwidth_method = None):
             assert model is not None, 'Model must be fitted first'
             f0, f1 = model['f0'], model['f1']
             X, y = _stack_samples(samples)
+            X = X.ravel()
             f0x = f0(X)
             f1x = f1(X)
             denom = (f0x + f1x + np.spacing(1))
@@ -32,7 +33,7 @@ def DensityEstFitterMixin(bandwidth_method = None):
             y0 = negative_samples['y']
             y1 = positive_samples['y']
 
-            X0, X1 = _ensure_2dim(X0, X1)
+            X0, X1 = X0.ravel(), X1.ravel()
 
             num_samples = y0.size + y1.size
 
@@ -42,9 +43,9 @@ def DensityEstFitterMixin(bandwidth_method = None):
                     self.bandwidth_method(num_samples)) / num_samples  # eg log
             if hasattr(self.bandwidth_method, '__add__'):  # float:
                 bw = num_samples ** (1 - self.bandwidth_method)
-
             f0 = gaussian_kde(X0, bw_method=bw)
             f1 = gaussian_kde(X1, bw_method=bw)
+
             return {'f0':f0, 'f1':f1}
 
         @classmethod

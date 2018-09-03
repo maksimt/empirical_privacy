@@ -8,11 +8,11 @@ import time
 from empirical_privacy import one_bit_sum_joblib
 from empirical_privacy import one_bit_sum
 from luigi_utils.pipeline_helper import build_convergence_curve_pipeline, \
-    build_convergence_curve_pipeline2
+    build_convergence_curve_pipeline
 
 @pytest.fixture(scope='session')
 def ds_rs():
-    return {'dataset_settings': {'n_trials':4000, 'prob_success':0.5,
+    return {'dataset_settings': {'n_trials':40, 'prob_success':0.5,
                                     'gen_distr_type':'binom'},
             'random_seed':'1338'}
 
@@ -75,7 +75,8 @@ def test_compute_convergence_curve(simple_ccc):
 
 @pytest.fixture(scope='session')
 def built_ccc(ccc_kwargs):
-    CCC = build_convergence_curve_pipeline2(one_bit_sum.GenSampleOneBitSum)
+    CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
+                                           generate_in_batch=True)
     CCC2_inst = CCC(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
@@ -89,10 +90,23 @@ def test_ccc_pipeline_builder( simple_ccc, built_ccc):
 
 
 def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
-    AbraCadabra = build_convergence_curve_pipeline2(
-        one_bit_sum.GenSampleOneBitSum)
+    AbraCadabra = build_convergence_curve_pipeline(
+        one_bit_sum.GenSampleOneBitSum, generate_in_batch=True)
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8, log_level='ERROR')
     cputime = time.clock() - start_clock
     assert cputime < 1/100.0 * built_ccc['cputime']
+
+@pytest.mark.parametrize('fitter', ['density', 'expectation'])
+def test_other_ccc_fitters(fitter,ccc_kwargs):
+    CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
+                                           generate_in_batch=True,
+                                           fitter=fitter)
+    TheCCC = CCC(**ccc_kwargs)
+    luigi.build([TheCCC], local_scheduler=True, workers=1,
+                log_level='ERROR')
+    with TheCCC.output().open() as f:
+        res = pickle.load(f)
+    assert res['sd_matrix'].shape == (3,4)
+    assert np.all((0 <= res['sd_matrix']) & (res['sd_matrix'] <= 1))

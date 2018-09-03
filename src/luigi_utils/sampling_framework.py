@@ -222,8 +222,6 @@ class _GenSamples(
     num_samples = luigi.IntParameter()
 
 
-
-
     def requires(self):
         if not self.generate_in_batch:
             GS = self.gen_sample_type
