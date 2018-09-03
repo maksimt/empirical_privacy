@@ -6,7 +6,8 @@ import numpy as np
 import itertools
 
 from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
-from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, MIN_SAMPLES
+from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
+    MIN_SAMPLES, SAMPLES_BASE
 
 
 def ComputeConvergenceCurve(
@@ -36,17 +37,19 @@ class _ComputeConvergenceCurve(
 
     @property
     def pow_min(self):
-        return np.floor(np.log2(MIN_SAMPLES) + np.spacing(1)).astype(np.int)
+        return np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
+                        + np.spacing(1)).astype(np.int)
 
     @property
     def n_steps(self):
-        pow_max = np.floor(np.log2(self.n_max) + np.spacing(1)).astype(np.int)
+        pow_max = np.floor(np.log(self.n_max) / np.log(SAMPLES_BASE)
+                           + np.spacing(1)).astype(np.int)
         return pow_max - self.pow_min + 1
 
     @property
     def _training_set_sizes(self):
         return np.logspace(self.pow_min, self.n_steps + 2, num=self.n_steps,
-                           dtype=int, base=2)
+                           dtype=int, base=SAMPLES_BASE)
 
     def requires(self):
         reqs = {}
@@ -257,7 +260,7 @@ class _GenSamples(
                 for sample_num in range(self.num_samples)]
             return {'samples': reqs}
         if self.num_samples > MIN_SAMPLES:
-            self.n_prev = np.floor(self.num_samples / 2.0).astype(int)
+            self.n_prev = np.floor(self.num_samples / SAMPLES_BASE).astype(int)
             return {'prev': self.__class__(  # because the class will have
                 # been specialized by the factory GenSamples()
                 dataset_settings = self.dataset_settings,

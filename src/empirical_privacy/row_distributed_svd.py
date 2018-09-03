@@ -1,3 +1,7 @@
+
+class GenSVDSample():
+
+
 class ComputeBaseModel(luigi.Target,
        AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
        LoadInputDictMixin

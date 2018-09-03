@@ -8,7 +8,7 @@ from empirical_privacy import one_bit_sum_joblib
 from empirical_privacy import one_bit_sum
 from luigi_utils.pipeline_helper import build_convergence_curve_pipeline
 
-from empirical_privacy.config import MIN_SAMPLES
+from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
 
 @pytest.fixture(scope='session')
 def ds_rs():
@@ -66,14 +66,15 @@ def simple_ccc(ccc_kwargs):
     luigi.build([CC], local_scheduler=True, workers=8, log_level='ERROR')
     with CC.output().open() as f:
         res = dill.load(f)
-    print(CC.n_steps)
     return res
 
 @pytest.fixture(scope='session')
 def expected_sd_matrix_shape(ccc_kwargs):
     n_row = ccc_kwargs['n_trials_per_training_set_size']
-    pow_min = np.floor(np.log2(MIN_SAMPLES) + np.spacing(1)).astype(np.int)
-    pow_max = np.floor(np.log2(ccc_kwargs['n_max']) + np.spacing(1)).astype(np.int)
+    pow_min = np.floor(np.log(MIN_SAMPLES)/np.log(SAMPLES_BASE)
+                       + np.spacing(1)).astype(np.int)
+    pow_max = np.floor(np.log(ccc_kwargs['n_max'])/np.log(SAMPLES_BASE)
+                       + np.spacing(1)).astype(np.int)
     n_steps = pow_max - pow_min + 1
     n_col = n_steps
     return (n_row, n_col)
