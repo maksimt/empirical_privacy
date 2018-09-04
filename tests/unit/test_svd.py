@@ -5,7 +5,7 @@ import luigi
 
 from empirical_privacy.row_distributed_common import \
     gen_attacker_and_defender_indices
-from empirical_privacy.row_distributed_svd import CCCSVD
+from empirical_privacy.row_distributed_svd import CCCSVD, GenSVDSample
 
 def test_gen_indices():
     doc_ind = 7
@@ -51,3 +51,18 @@ def test_CCC(ccc_kwargs):
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
     assert res['sd_matrix'].shape == (3,2)
+
+@pytest.mark.parametrize('ccc_kwargs', ['hidden_eigs'], indirect=['ccc_kwargs'])
+def test_GS_20ng(ccc_kwargs):
+    ds = ccc_kwargs['dataset_settings']
+    ds['dataset_name'] = 'ml-1m'
+
+    GS = GenSVDSample(dataset_settings=ds,
+                      random_seed='0',
+                      generate_positive_sample=True,
+                      sample_number=0)
+    luigi.build([GS], local_scheduler=True, workers=1,
+                log_level='ERROR')
+    with GS.output().open() as f:
+        res = dill.load(f)
+    assert res.x.size >= 6
