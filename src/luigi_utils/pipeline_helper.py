@@ -1,7 +1,7 @@
-from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
-    EvaluateStatisticalDistance, ComputeConvergenceCurve
 from luigi_utils.privacy_estimator_mixins import DensityEstFitterMixin, \
     ExpectationFitterMixin, KNNFitterMixin
+from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
+    EvaluateStatisticalDistance, ComputeConvergenceCurve
 
 
 def build_convergence_curve_pipeline(GenSampleType: GenSample,

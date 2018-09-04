@@ -1,13 +1,14 @@
-import luigi
-import dill
+import itertools
 from abc import abstractmethod, ABC
 from collections import namedtuple
-import numpy as np
-import itertools
 
-from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
+import dill
+import luigi
+import numpy as np
+
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
     MIN_SAMPLES, SAMPLES_BASE
+from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
 
 
 def ComputeConvergenceCurve(
@@ -28,7 +29,7 @@ class _ComputeConvergenceCurve(
     LoadInputDictMixin,
     luigi.Task,
     ABC
-):
+    ):
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
 
@@ -44,7 +45,10 @@ class _ComputeConvergenceCurve(
     def n_steps(self):
         pow_max = np.floor(np.log(self.n_max) / np.log(SAMPLES_BASE)
                            + np.spacing(1)).astype(np.int)
-        return pow_max - self.pow_min + 1
+        n_steps = pow_max - self.pow_min + 1
+        assert n_steps > 0 , 'n_steps is {} which results in no ' \
+                             'samples.'.format(n_steps)
+        return n_steps
 
     @property
     def _training_set_sizes(self):
@@ -53,18 +57,17 @@ class _ComputeConvergenceCurve(
 
     def requires(self):
         reqs = {}
-
         for training_set_size, trial in itertools.product(
                 self._training_set_sizes,
                 range(self.n_trials_per_training_set_size)
-        ):
+                ):
             reqs[_CP(trial, training_set_size)] = \
                 self.compute_stat_dist(
                     dataset_settings=self.dataset_settings,
                     training_set_size=training_set_size,
                     validation_set_size=self.validation_set_size,
                     random_seed='trial{}'.format(trial)
-                )
+                    )
         return reqs
 
     def run(self):
@@ -76,7 +79,7 @@ class _ComputeConvergenceCurve(
         for training_set_size, trial in itertools.product(
                 tss,
                 range(self.n_trials_per_training_set_size)
-        ):
+                ):
             sd_matrix[trial, np.argwhere(tss == training_set_size)[0, 0]] = \
                 _inputs[_CP(trial, training_set_size)]['statistical_distance']
 
@@ -100,7 +103,7 @@ class _EvaluateStatisticalDistance(
     LoadInputDictMixin,
     luigi.Task,
     ABC
-):
+    ):
     dataset_settings = luigi.DictParameter()
     training_set_size = luigi.IntParameter()
     validation_set_size = luigi.IntParameter()
@@ -112,19 +115,19 @@ class _EvaluateStatisticalDistance(
             dataset_settings=self.dataset_settings,
             samples_per_class=int(round(self.training_set_size / 2)),
             random_seed=self.random_seed
-        )
+            )
         reqs['samples_positive'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
             random_seed=self.random_seed + 'validation',
             generate_positive_samples=True
-        )
+            )
         reqs['samples_negative'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
             random_seed=self.random_seed + 'validation',
             generate_positive_samples=False
-        )
+            )
         return reqs
 
     def run(self):
@@ -133,7 +136,7 @@ class _EvaluateStatisticalDistance(
             _input['model'],
             _input['samples_positive'],
             _input['samples_negative']
-        )
+            )
         with self.output().open('wb') as f:
             dill.dump({'statistical_distance': sd}, f, 0)
 
@@ -186,13 +189,13 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
             num_samples=self.samples_per_class,
             random_seed=self.random_seed,
             generate_positive_samples=True
-        )
+            )
         req['samples_negative'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
             random_seed=self.random_seed,
             generate_positive_samples=False
-        )
+            )
         return req
 
     def run(self):
@@ -230,8 +233,8 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
         pass
 
     T.gen_sample_type = gen_sample_type
-    T.x_concatenator = x_concatenator
-    T.y_concatenator = y_concatenator
+    T.x_concatenator = staticmethod(x_concatenator)
+    T.y_concatenator = staticmethod(y_concatenator)
     T.generate_in_batch = generate_in_batch
     return T
 
@@ -241,7 +244,7 @@ class _GenSamples(
     LoadInputDictMixin,
     luigi.Task,
     ABC
-):
+    ):
     dataset_settings = luigi.DictParameter()
     random_seed = luigi.Parameter()
     generate_positive_samples = luigi.BoolParameter()
@@ -256,18 +259,20 @@ class _GenSamples(
                 generate_positive_sample=self.generate_positive_samples,
                 sample_number=sample_num
 
-            )
+                )
                 for sample_num in range(self.num_samples)]
             return {'samples': reqs}
         if self.num_samples > MIN_SAMPLES:
             self.n_prev = np.floor(self.num_samples / SAMPLES_BASE).astype(int)
-            return {'prev': self.__class__(  # because the class will have
-                # been specialized by the factory GenSamples()
-                dataset_settings = self.dataset_settings,
-                random_seed = self.random_seed,
-                generate_positive_samples = self.generate_positive_samples,
-                num_samples = self.n_prev
-            )}
+            return {
+                'prev': self.__class__(  # because the class will have
+                    # been specialized by the factory GenSamples()
+                    dataset_settings=self.dataset_settings,
+                    random_seed=self.random_seed,
+                    generate_positive_samples=self.generate_positive_samples,
+                    num_samples=self.n_prev
+                    )
+                }
         self.n_prev = 0
         return {}
 
@@ -275,21 +280,27 @@ class _GenSamples(
         if not self.generate_in_batch:
             samples = self.load_input_dict()['samples']
         else:  # self.generate_in_batch
-            prev = {'X': np.array([]), 'y': np.array([])}
+            prev = {'X': None, 'y': None}
             if self.num_samples > MIN_SAMPLES:
                 prev = self.load_input_dict()['prev']
 
-            f_GS = self.gen_sample_type.gen_sample
+            f_GS = self.gen_sample_type(dataset_settings=self.dataset_settings,
+                                        random_seed=self.random_seed,
+                                        generate_positive_sample=self.generate_positive_samples
+                                        ).gen_sample
 
-            samples = [f_GS(dataset_settings=self.dataset_settings,
-                            generate_positive_sample=self.generate_positive_samples,
-                            sample_number=sn,
-                            random_seed=self.random_seed) for sn in \
+            samples = [f_GS(sample_number=sn) for sn in \
                        range(self.n_prev, self.num_samples)]
 
         X, y = zip(*samples)
-        X = self.x_concatenator((prev['X'], self.x_concatenator(X)))
-        y = self.y_concatenator((prev['y'], self.y_concatenator(y)))
+        if prev['X'] is not None:
+            X = self.x_concatenator((prev['X'], self.x_concatenator(X)))
+        else:
+            X = self.x_concatenator(X)
+        if prev['y'] is not None:
+            y = self.y_concatenator((prev['y'], self.y_concatenator(y)))
+        else:
+            y = self.y_concatenator(y)
 
         with self.output().open('w') as f:
             dill.dump({'X': X, 'y': y}, f, 2)
@@ -303,11 +314,11 @@ class GenSample(
     LoadInputDictMixin,
     luigi.Task,
     ABC
-):
+    ):
     dataset_settings = luigi.DictParameter()
     random_seed = luigi.Parameter()
     generate_positive_sample = luigi.BoolParameter()
-    sample_number = luigi.IntParameter()
+    sample_number = luigi.IntParameter(default=-1337)
 
     @classmethod
     def set_simple_random_seed(cls, sample_number, random_seed):
@@ -316,18 +327,19 @@ class GenSample(
         seed_val %= 4294967296
         np.random.seed(seed_val)
 
-    @classmethod
-    def gen_sample(cls, dataset_settings, generate_positive_sample,
-                   sample_number, random_seed):
+    @abstractmethod
+    def gen_sample(self, sample_number: int):
         raise NotImplementedError('This method needs to be implemented by a '
                                   'subclass of GenSample.')
         # return x, y
 
     def run(self):
-        x, y = self.gen_sample(dataset_settings=self.dataset_settings,
-                               generate_positive_sample=self.generate_positive_sample,
-                               sample_number=self.sample_number,
-                               random_seed=self.random_seed
-                               )
+        if self.sample_number == -1337:
+            raise ValueError('A sample_number wasnt provided to the '
+                             'constructor of GenSample() but the run() method '
+                             'was called.'
+                             'The sample_number argument is only optional if '
+                             'the gen_sample() method is called directly.')
+        x, y = self.gen_sample(sample_number=self.sample_number)
         with self.output().open('wb') as f:
             dill.dump(Sample(x, y), f, 2)

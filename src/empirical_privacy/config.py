@@ -1,4 +1,4 @@
-LUIGI_COMPLETED_TARGETS_DIR = '/emp_priv/luigi_completed'
+LUIGI_COMPLETED_TARGETS_DIR = '/luigi_completed'
 SAMPLES_BASE = 2  # curves will be generated for sequential powers of
 # SAMPLES_BASE
-MIN_SAMPLES = SAMPLES_BASE**5
+MIN_SAMPLES = SAMPLES_BASE ** 3

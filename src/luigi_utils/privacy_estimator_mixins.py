@@ -1,15 +1,16 @@
 from math import ceil, sqrt
 
 import numpy as np
+from scipy.integrate import quad
+from scipy.stats import gaussian_kde
 from sklearn import neighbors
 from sklearn.metrics import make_scorer, accuracy_score
 from sklearn.model_selection import GridSearchCV
-from scipy.stats import gaussian_kde
-from scipy.integrate import quad
 
 
-def ExpectationFitterMixin(bandwidth_method = None):
-    class T(DensityEstFitterMixin(bandwidth_method)):  # picks up the fit_model method
+def ExpectationFitterMixin(bandwidth_method=None):
+    class T(DensityEstFitterMixin(
+        bandwidth_method)):  # picks up the fit_model method
         @classmethod
         def compute_classification_accuracy(self, model=None, *samples):
             assert model is not None, 'Model must be fitted first'
@@ -24,14 +25,22 @@ def ExpectationFitterMixin(bandwidth_method = None):
 
     return T
 
+def _assert_at_most_1dim(*Xs):
+    for X in Xs:
+        assert X.ndim <= 2, 'Xs must be at most 1 dimensional'
+        if X.ndim == 2:
+            assert X.shape[1]==1, 'Xs must be at most 1 dimensional'
 
-def DensityEstFitterMixin(bandwidth_method = None):
+
+def DensityEstFitterMixin(bandwidth_method=None):
     class T(object):
         def fit_model(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
             X1 = positive_samples['X']
             y0 = negative_samples['y']
             y1 = positive_samples['y']
+
+            _assert_at_most_1dim(X0, X1)
 
             X0, X1 = X0.ravel(), X1.ravel()
 
@@ -46,7 +55,7 @@ def DensityEstFitterMixin(bandwidth_method = None):
             f0 = gaussian_kde(X0, bw_method=bw)
             f1 = gaussian_kde(X1, bw_method=bw)
 
-            return {'f0':f0, 'f1':f1}
+            return {'f0': f0, 'f1': f1}
 
         @classmethod
         def compute_classification_accuracy(cls, model=None, *samples):
@@ -55,14 +64,15 @@ def DensityEstFitterMixin(bandwidth_method = None):
             return 0.5 + \
                    0.5 * 0.5 * \
                    quad(lambda x: np.abs(f0(x) - f1(x)), -np.inf, np.inf)[0]
+
     T.bandwidth_method = bandwidth_method
 
-    #TODO: Unclear how to handle validation set here
+    # TODO: Unclear how to handle validation set here
 
     return T
 
 
-def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
+def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
     class T(object):
         def fit_model(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
@@ -86,9 +96,10 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
                 if neighbor_method == 'cv':
                     param_grid = \
                         [{
-                             'n_neighbors': (num_samples **
-                                             np.linspace(0.1, 1, 9)).astype(np.int)
-                         }]
+                            'n_neighbors': (num_samples **
+                                            np.linspace(0.1, 1, 9)).astype(
+                                np.int)
+                            }]
                     gs = GridSearchCV(KNN, param_grid,
                                       scoring=make_scorer(accuracy_score),
                                       cv=min([3, num_samples]))
@@ -102,7 +113,7 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
                     X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
 
             KNN.fit(X, y)
-            return {'KNN':KNN}
+            return {'KNN': KNN}
 
         @classmethod
         def compute_classification_accuracy(cls, model=None, *samples):
@@ -116,9 +127,9 @@ def KNNFitterMixin(neighbor_method = 'sqrt_random_tiebreak'):
 
 def _ensure_2dim(X0, X1):
     # sklearn wants X to have dimension>=2
-    if len(X0.shape) == 1:
+    if X0.ndim == 1:
         X0 = X0[:, np.newaxis]
-    if len(X1.shape) == 1:
+    if X1.ndim == 1:
         X1 = X1[:, np.newaxis]
     return X0, X1
 

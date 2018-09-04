@@ -1,45 +1,54 @@
-import pytest
-import luigi
-import dill
-import numpy as np
 import time
 
-from empirical_privacy import one_bit_sum_joblib
-from empirical_privacy import one_bit_sum
+import dill
+import luigi
+import numpy as np
+import pytest
+
+from empirical_privacy import one_bit_sum_joblib, one_bit_sum
+from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
 from luigi_utils.pipeline_helper import build_convergence_curve_pipeline
 
-from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
 
 @pytest.fixture(scope='session')
 def ds_rs():
-    return {'dataset_settings': {'n_trials':40, 'prob_success':0.5,
-                                    'gen_distr_type':'binom'},
-            'random_seed':'1338'}
+    return {
+        'dataset_settings': {
+            'n_trials'      : 40, 'prob_success': 0.5,
+            'gen_distr_type': 'binom'
+        },
+        'random_seed'     : '1338'
+    }
+
 
 def test_pytest():
-    assert 3 == (2+1)
+    assert 3 == (2 + 1)
+
 
 def test_import():
     X0, X1, y0, y1 = one_bit_sum_joblib.gen_data(10, 0.5, 100, 0)
     assert X0.shape[0] == 100
 
+
 def test_gen_samples_one_bit(ds_rs):
     GSTask = one_bit_sum.GenSamplesOneBit(
-        generate_positive_samples = True,
-        num_samples = 23,
+        generate_positive_samples=True,
+        num_samples=23,
         **ds_rs
-    )
+        )
     luigi.build([GSTask], local_scheduler=True, workers=1, log_level='ERROR')
     with GSTask.output().open() as f:
         samples = dill.load(f)
-    assert(samples['X'].size==23)
+    assert (samples['X'].size == 23)
+
 
 def test_fit_model_one_bit(ds_rs):
     FMTask = one_bit_sum.FitKNNModelOneBit(samples_per_class=11, **ds_rs)
     luigi.build([FMTask], local_scheduler=True, workers=1, log_level='ERROR')
     with FMTask.output().open() as f:
         model = dill.load(f)
-    assert('KNN' in model)
+    assert ('KNN' in model)
+
 
 def test_compute_stat_dist(ds_rs):
     ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=200,
@@ -48,17 +57,18 @@ def test_compute_stat_dist(ds_rs):
     luigi.build([ESD], local_scheduler=True, workers=1, log_level='ERROR')
     with ESD.output().open() as f:
         sd = dill.load(f)['statistical_distance']
-    assert(sd > 0 and sd < 1)
+    assert (sd > 0 and sd < 1)
 
 
 @pytest.fixture(scope='session')
 def ccc_kwargs(ds_rs):
     return {
         'n_trials_per_training_set_size': 3,
-        'n_max': 64,
-        'dataset_settings': ds_rs['dataset_settings'],
-        'validation_set_size': 10
-    }
+        'n_max'                         : 64,
+        'dataset_settings'              : ds_rs['dataset_settings'],
+        'validation_set_size'           : 10
+        }
+
 
 @pytest.fixture(scope='session')
 def simple_ccc(ccc_kwargs):
@@ -68,16 +78,18 @@ def simple_ccc(ccc_kwargs):
         res = dill.load(f)
     return res
 
+
 @pytest.fixture(scope='session')
 def expected_sd_matrix_shape(ccc_kwargs):
     n_row = ccc_kwargs['n_trials_per_training_set_size']
-    pow_min = np.floor(np.log(MIN_SAMPLES)/np.log(SAMPLES_BASE)
+    pow_min = np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
                        + np.spacing(1)).astype(np.int)
-    pow_max = np.floor(np.log(ccc_kwargs['n_max'])/np.log(SAMPLES_BASE)
+    pow_max = np.floor(np.log(ccc_kwargs['n_max']) / np.log(SAMPLES_BASE)
                        + np.spacing(1)).astype(np.int)
     n_steps = pow_max - pow_min + 1
     n_col = n_steps
     return (n_row, n_col)
+
 
 def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape):
     assert simple_ccc['sd_matrix'].shape == expected_sd_matrix_shape
@@ -93,9 +105,10 @@ def built_ccc(ccc_kwargs):
     cputime = time.clock() - start_clock
     with CCC2_inst.output().open() as f:
         res = dill.load(f)
-    return {'res':res, 'cputime':cputime}
+    return {'res': res, 'cputime': cputime}
 
-def test_ccc_pipeline_builder( simple_ccc, built_ccc):
+
+def test_ccc_pipeline_builder(simple_ccc, built_ccc):
     assert np.allclose(built_ccc['res']['sd_matrix'], simple_ccc['sd_matrix'])
 
 
@@ -104,9 +117,11 @@ def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
         one_bit_sum.GenSampleOneBitSum, generate_in_batch=True)
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     start_clock = time.clock()
-    luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8, log_level='ERROR')
+    luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8,
+                log_level='ERROR')
     cputime = time.clock() - start_clock
-    assert cputime < 1/20.0 * built_ccc['cputime']
+    assert cputime < 1 / 5.0 * built_ccc['cputime']
+
 
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
 def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):

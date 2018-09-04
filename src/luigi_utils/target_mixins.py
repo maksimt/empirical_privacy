@@ -1,25 +1,25 @@
 import collections
-import dill
 import os
 
+import dill
 import luigi
 import numpy as np
+
 
 class LoadInputDictMixin(luigi.Task):
     """luigi Task wrapper that automatically generates the output() method"""
 
-
-    def load_input_dict(self, _input = None, all_numpy = False):
+    def load_input_dict(self, _input=None, all_numpy=False):
         """load dict of inputs luigi Targets and return their loaded values
         as output. Supports nested dicts."""
         inp = {}
         if not _input:
             _input = self.input()
 
-        if type(_input)==dict:
+        if type(_input) == dict:
             for k in _input:
                 inp[k] = self.load_input_dict(_input[k], all_numpy=all_numpy)
-        elif type(_input)==list:
+        elif type(_input) == list:
             inp = []
             for item in _input:
                 inp.append(self.load_input_dict(item, all_numpy=all_numpy))
@@ -45,6 +45,7 @@ class LoadInputDictMixin(luigi.Task):
             paths.append(self.input())
         return paths
 
+
 def _try_delete(path):
     """
     Attempt to delete file at path, pass on file not found, raise anything else
@@ -66,12 +67,13 @@ def _try_delete(path):
         else:
             raise err
 
+
 class SingleFileMTask(object):
     def output(self):
         return luigi.LocalTarget(
             gen_fn_v3(self.base_path, self),
             format=luigi.format.Nop
-        )
+            )
 
     def delete_outputs(self):
         _try_delete(self.output().path)
@@ -84,7 +86,7 @@ class DictMTask(object):
             dict_out[k] = luigi.LocalTarget(
                 gen_fn_v3(self.base_path, self, suffix=repr(k)),
                 format=luigi.format.Nop
-            )
+                )
         return dict_out
 
     def delete_outputs(self):
@@ -100,7 +102,7 @@ class ListMTask(object):
             list_out.append(luigi.LocalTarget(
                 gen_fn_v3(self.base_path, self),
                 format=luigi.format.Nop
-            ))
+                ))
         return list_out
 
     def delete_outputs(self):
@@ -112,6 +114,7 @@ def AutoLocalOutputMixin(output='single_file', base_path='/tmp/'):
     if output == 'single_file':
         class T(SingleFileMTask):
             pass
+
         T.base_path = base_path
         return T
     elif isinstance(output, collections.Sequence):
@@ -120,22 +123,23 @@ def AutoLocalOutputMixin(output='single_file', base_path='/tmp/'):
     elif isinstance(output, collections.Mapping):
         class T(DictMTask):
             pass
-        T.outputs = output#luigi.DictParameter(default=output)
-        T.base_path = base_path#luigi.Parameter(default=base_path)
+
+        T.outputs = output  # luigi.DictParameter(default=output)
+        T.base_path = base_path  # luigi.Parameter(default=base_path)
         return T
     else:
         raise NotImplementedError('Output type {} not implemented'.format(
             type(output)))
 
+
 def gen_fn_v3(base_path, obj, suffix=''):
     if not base_path.endswith('/'):
-        base_path+='/'
+        base_path += '/'
 
     fn = base_path + repr(obj) + suffix
 
-    if True or len(fn)>200:
+    if True or len(fn) > 200:
         fn = base_path + obj.__class__.get_task_family() + '__' + \
-             str(hash(obj)^hash(suffix))
+             str(hash(obj) ^ hash(suffix))
 
     return fn
-

@@ -1,24 +1,25 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import scipy as sp
 from sklearn.model_selection import train_test_split
 
-def load_dataset(dataset_name):
 
+def load_dataset(dataset_name):
     available_names = ['ml-1m']
     if dataset_name is None:
         print('Warning no dataset_name provided, loading MillionSongs')
         dataset_name = 'ml-1m'
     if dataset_name not in available_names:
-        print('Error dataset "{0}" not available, only {1} are available'. \
+        raise ValueError('Error dataset "{0}" not available, only {1} are '
+                         'available'. \
             format(
             dataset_name,
             available_names
-        ))
-        return None
+            ))
 
     if dataset_name == 'ml-1m':
         return load_ml1m()
+
 
 def load_ml1m(test_size=0.3, random_state=0):
     file_path = '/datasets/ml-1m/ratings.dat'
@@ -54,7 +55,7 @@ def load_ml1m(test_size=0.3, random_state=0):
         test_size=test_size,
         random_state=random_state,
         stratify=None
-    )
+        )
 
     n, d = len(np.unique(U)), len(np.unique(I))
 
@@ -64,4 +65,4 @@ def load_ml1m(test_size=0.3, random_state=0):
     Xte = sp.sparse.coo_matrix((Rte, (UIte[:, 0], UIte[:, 1])),
                                shape=(n, d)).tocsr()
 
-    return {'Xtr':Xtr, 'Xte':Xte, 'ytr':None, 'yte':None}
+    return {'Xtr': Xtr, 'Xte': Xte, 'ytr': None, 'yte': None}
