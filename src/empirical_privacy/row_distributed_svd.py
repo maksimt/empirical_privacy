@@ -27,7 +27,7 @@ def svd_dataset_settings(part_fraction=0.3,
 def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
                                    n_trials_per_training_set_size=3,
                                    validation_set_size=64,
-                                   n_max=128,
+                                   n_max=256,
                                    dataset_settings=None
                                    ):
     if dataset_settings is None:
