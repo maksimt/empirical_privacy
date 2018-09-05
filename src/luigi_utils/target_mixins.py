@@ -4,6 +4,8 @@ import os
 import dill
 import luigi
 import numpy as np
+from luigi.task import task_id_str
+
 
 
 class LoadInputDictMixin(luigi.Task):
@@ -133,13 +135,5 @@ def AutoLocalOutputMixin(output='single_file', base_path='/tmp/'):
 
 
 def gen_fn_v3(base_path, obj, suffix=''):
-    if not base_path.endswith('/'):
-        base_path += '/'
-
-    fn = base_path + repr(obj) + suffix
-
-    if True or len(fn) > 200:
-        fn = base_path + obj.__class__.get_task_family() + '__' + \
-             str(hash(obj) ^ hash(suffix))
-
-    return fn
+    fn = task_id_str(obj.task_family, obj.to_str_params())+suffix
+    return os.path.join(base_path, fn)
