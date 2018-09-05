@@ -94,12 +94,11 @@ class GenSVDSample(GenSample):
 
     def gen_sample(self, sample_number: int):
         n = self.X.shape[0]
-
         Inds = gen_attacker_and_defender_indices(
             n,
             self.dataset_settings['part_fraction'],
             self.dataset_settings['doc_ind'],
-            self.random_seed
+            self.random_seed+'sample{}'.format(sample_number)
             )
         I_atk = Inds['I_attacker']
         if self.generate_positive_sample:
