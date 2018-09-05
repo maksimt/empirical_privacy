@@ -27,3 +27,5 @@ RUN mkdir /datasets && \
     rm OnlineNews.zip && \
     rm MillionSongs.zip && \
     chown -R jovyan:users /datasets
+
+RUN python -c "from dataset_utils.common import load_dataset; load_dataset('20NG')"
