@@ -28,4 +28,5 @@ RUN mkdir /datasets && \
     rm MillionSongs.zip && \
     chown -R jovyan:users /datasets
 
-RUN python -c "from dataset_utils.common import load_dataset; load_dataset('20NG')"
+RUN python -c "from sklearn.datasets.twenty_newsgroups import fetch_20newsgroups;\
+                fetch_20newsgroups(data_home='/datasets', subset='all')"
