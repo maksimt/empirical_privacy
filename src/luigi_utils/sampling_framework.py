@@ -119,13 +119,13 @@ class _EvaluateStatisticalDistance(
         reqs['samples_positive'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
-            random_seed=self.random_seed + 'validation',
+            random_seed='validation',
             generate_positive_samples=True
             )
         reqs['samples_negative'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
-            random_seed=self.random_seed + 'validation',
+            random_seed='validation',
             generate_positive_samples=False
             )
         return reqs
