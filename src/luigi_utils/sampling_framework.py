@@ -289,8 +289,11 @@ class _GenSamples(
                                         generate_positive_sample=self.generate_positive_samples
                                         ).gen_sample
 
-            samples = [f_GS(sample_number=sn) for sn in \
-                       range(self.n_prev, self.num_samples)]
+            samples = []
+            n_to_make = self.num_samples - self.n_prev + 1
+            for sn in range(self.n_prev, self.num_samples):
+                self.set_progress_percentage((sn-self.n_prev)/n_to_make)
+                samples.append(f_GS(sample_number=sn))
 
         X, y = zip(*samples)
         if prev['X'] is not None:
