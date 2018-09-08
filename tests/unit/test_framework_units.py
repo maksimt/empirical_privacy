@@ -1,4 +1,5 @@
 import time
+import copy
 
 import dill
 import luigi
@@ -7,7 +8,8 @@ import pytest
 
 from empirical_privacy import one_bit_sum_joblib, one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.pipeline_helper import build_convergence_curve_pipeline
+from luigi_utils.helpers import build_convergence_curve_pipeline,\
+    load_completed_CCCs_into_dataframe
 
 
 @pytest.fixture(scope='session')
@@ -135,3 +137,17 @@ def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
         res = dill.load(f)
     assert res['sd_matrix'].shape == expected_sd_matrix_shape
     assert np.all((0 <= res['sd_matrix']) & (res['sd_matrix'] <= 1))
+
+def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
+    CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
+                                           generate_in_batch=True,
+                                           fitter='knn')
+    CCCs = []
+    for rs in range(5,10):
+        ck = copy.deepcopy(ccc_kwargs)
+        ck['dataset_settings']['n_trials'] = rs
+        CCCs.append(CCC(**ck))
+    luigi.build(CCCs, local_scheduler=True, workers=4, log_level='ERROR')
+    DF = load_completed_CCCs_into_dataframe(CCCs)
+    n_rows_exp = np.prod(expected_sd_matrix_shape) * 5
+    assert DF.shape==(n_rows_exp, 9)
