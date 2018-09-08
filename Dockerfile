@@ -30,3 +30,5 @@ RUN mkdir /datasets && \
 
 RUN python -c "from sklearn.datasets.twenty_newsgroups import fetch_20newsgroups;\
                 fetch_20newsgroups(data_home='/datasets', subset='all')"
+
+RUN conda install -f -y mkl blas=*=mkl
