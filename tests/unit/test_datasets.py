@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 from dataset_utils import regression_datasets, text_datasets, recsys_datasets
 
@@ -13,11 +14,12 @@ def test_load_regression_dataset(name):
 def test_load_text_dataset(name):
     ds = text_datasets.load_dataset(name)
     n, d = ds['Xtr'].shape
-    assert n == 11314 and d > 5000
+    assert np.sum(np.abs(np.asarray(ds['Xtr'].sum(1))-1)) < 1
+    assert n > 10500 and d > 5000
 
 
 @pytest.mark.parametrize('name', ['ml-1m'])
-def test_load_text_dataset(name):
+def test_load_rs_dataset(name):
     ds = recsys_datasets.load_dataset(name)
     n, d = ds['Xtr'].shape
     assert n == 6040 and d == 3706 and ds['Xtr'].shape == ds['Xte'].shape

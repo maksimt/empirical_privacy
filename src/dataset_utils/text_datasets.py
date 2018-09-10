@@ -1,3 +1,7 @@
+import numpy as np
+from scipy.sparse import csr_matrix
+
+
 from sklearn.datasets import fetch_20newsgroups
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -28,7 +32,46 @@ def load_dataset(dataset_name):
 
         Xtr = tf_vectorizer.fit_transform(twenty_tr.data)
         Xte = tf_vectorizer.fit_transform(twenty_te.data)
+
+        Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr)
+        Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte)
+
+        Xtr = _normalize(Xtr)
+        Xte = _normalize(Xte)
+
         return {
             'Xtr': Xtr, 'ytr': twenty_tr.target,
             'Xte': Xte, 'yte': twenty_te.target
         }
+
+def _normalize(X, axis=1):
+    return X / (X.sum(axis) + np.spacing(10))
+
+def _remove_zero_rows_cols(X, min_row=1, min_col=1):
+    """Remove rows and columns of X that sum to 0
+
+    Parameters
+    ----------
+    X : arraylike
+    users * items matrix
+
+    Returns
+    -------
+    X : arraylike
+    user * items matirx with zero rows and columns removed
+
+    I_users : arraylike
+    indices of non-zero users
+
+    I_items : arraylike
+    indices of non-zero items
+
+    """
+    M = X>0
+    I_users = np.argwhere(M.sum(1) >= min_row).ravel()
+    I_items = np.argwhere(M.sum(0) >= min_col).ravel()
+    X = X[I_users, :]
+
+    X = X[:, I_items]
+
+    return X, I_users, I_items
