@@ -15,6 +15,7 @@ def test_load_text_dataset(name):
     ds = text_datasets.load_dataset(name)
     n, d = ds['Xtr'].shape
     assert np.sum(np.abs(np.asarray(ds['Xtr'].sum(1))-1)) < 1
+    print(n,d)
     assert n > 10500 and d > 5000
 
 

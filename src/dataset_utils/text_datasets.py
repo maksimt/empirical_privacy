@@ -33,15 +33,18 @@ def load_dataset(dataset_name):
         Xtr = tf_vectorizer.fit_transform(twenty_tr.data)
         Xte = tf_vectorizer.fit_transform(twenty_te.data)
 
-        Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr)
-        Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte)
+        Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr, min_row=100,
+                                                           min_col=100)
+        Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte, min_row=100,
+                                                           min_col=0)
+        Xte = Xte[:, I_cols_tr]
 
         Xtr = csr_matrix(_normalize(Xtr))
         Xte = csr_matrix(_normalize(Xte))
 
         return {
-            'Xtr': Xtr, 'ytr': twenty_tr.target,
-            'Xte': Xte, 'yte': twenty_te.target
+            'Xtr': Xtr, 'ytr': twenty_tr.target[I_rows_tr],
+            'Xte': Xte, 'yte': twenty_te.target[I_rows_te]
         }
 
 def _normalize(X, axis=1):
