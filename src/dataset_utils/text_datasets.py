@@ -36,8 +36,8 @@ def load_dataset(dataset_name):
         Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr)
         Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte)
 
-        Xtr = _normalize(Xtr)
-        Xte = _normalize(Xte)
+        Xtr = csr_matrix(_normalize(Xtr))
+        Xte = csr_matrix(_normalize(Xte))
 
         return {
             'Xtr': Xtr, 'ytr': twenty_tr.target,
