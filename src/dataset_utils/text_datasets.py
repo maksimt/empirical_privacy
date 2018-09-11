@@ -27,7 +27,7 @@ def load_dataset(dataset_name):
         return twenty_ds()
 
 def _vectorizer() -> CountVectorizer:
-    return CountVectorizer(max_df=0.1, min_df=10,
+    return CountVectorizer(max_df=0.1, min_df=100,
                                     stop_words='english')
 
 @memory.cache
@@ -40,13 +40,13 @@ def twenty_ds():
                                    remove=('headers', 'footers', 'quotes'))
 
     tf_vectorizer = _vectorizer()
+    tf_vectorizer.fit(twenty_tr.data)
+    Xtr = tf_vectorizer.transform(twenty_tr.data).toarray()
+    Xte = tf_vectorizer.transform(twenty_te.data).toarray()
 
-    Xtr = tf_vectorizer.fit_transform(twenty_tr.data)
-    Xte = tf_vectorizer.fit_transform(twenty_te.data)
-
-    Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr, min_row=100,
+    Xtr, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(Xtr, min_row=10,
                                                        min_col=100)
-    Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte, min_row=100,
+    Xte, I_rows_te, I_cols_te = _remove_zero_rows_cols(Xte, min_row=10,
                                                        min_col=0)
     Xte = Xte[:, I_cols_tr]
 
@@ -64,29 +64,29 @@ def get_twenty_doc(doc_ind, subset='train'):
                                    remove=('headers', 'footers', 'quotes'))
     tf_vectorizer = _vectorizer()
     tf_vectorizer.fit(twenty.data)
-    X = tf_vectorizer.transform(twenty.data)
-    X, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(X, min_row=100,
-                                                       min_col=10)
+    X =tf_vectorizer.transform(twenty.data).toarray()
+    X, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(X, min_row=10,
+                                                       min_col=100)
     X = _normalize(X)
 
     n, d = X.shape
 
     idf = np.log(n/(np.sum(X>0,0)+1))
-    x_tfidf = np.asarray(np.multiply(X[doc_ind,:], idf)).ravel()
+    x_tfidf = X[doc_ind, :] * idf
 
-    J = x_tfidf>0
+    J = np.argwhere(x_tfidf>0).ravel()
     words = {ind:word for (word,ind) in tf_vectorizer.vocabulary_.items()}
-    vocab = [words[j] for j in np.argwhere(J).ravel()]
+    vocab = [words[j] for j in J]
     I = np.argsort(x_tfidf[J])[::-1]
     vocab = [vocab[i] for i in I]
 
-    rtv = {'text': twenty.data[doc_ind],
+    rtv = {'text': twenty.data[I_rows_tr[doc_ind]],
             'tfidf': x_tfidf.sum(),
             'words': list(zip(x_tfidf[J][I], vocab))}
     return rtv
 
 def _normalize(X, axis=1):
-    return X / (X.sum(axis) + np.spacing(10))
+    return X / (X.sum(axis)[:, np.newaxis] + np.spacing(10))
 
 def _remove_zero_rows_cols(X, min_row=1, min_col=1):
     """Remove rows and columns of X that sum to 0
