@@ -7,6 +7,43 @@ import numpy as np
 from luigi.task import task_id_str
 
 
+def _try_delete(path):
+    """
+    Attempt to delete file at path, pass on file not found, raise anything else
+
+    Parameters
+    ----------
+    path: full or relative path to file
+
+    Returns
+    -------
+
+    """
+    try:
+        os.remove(path)
+        return 1
+    except OSError as err:  # file does not exist
+        if err.errno == 2:
+            return 0
+        else:
+            raise err
+
+class DeleteDepsRecursively(luigi.Task):
+    def delete_deps(self):
+        _input = self.deps()
+        n_del = 0
+        if type(_input) == dict:
+            for k in _input:
+                n_del += _input[k].delete_deps()
+        elif type(_input) == list:
+            for item in _input:
+                n_del += item.delete_deps()
+        else:
+            if _input is not None:
+                n_del += _try_delete(_input.path)
+        n_del += _try_delete(self.output().path)
+        return n_del
+
 
 class LoadInputDictMixin(luigi.Task):
     """luigi Task wrapper that automatically generates the output() method"""
@@ -46,28 +83,6 @@ class LoadInputDictMixin(luigi.Task):
         else:
             paths.append(self.input())
         return paths
-
-
-def _try_delete(path):
-    """
-    Attempt to delete file at path, pass on file not found, raise anything else
-
-    Parameters
-    ----------
-    path: full or relative path to file
-
-    Returns
-    -------
-
-    """
-
-    try:
-        os.remove(path)
-    except OSError as err:  # file does not exist
-        if 'File does not exist' in str(err):
-            pass
-        else:
-            raise err
 
 
 class SingleFileMTask(object):

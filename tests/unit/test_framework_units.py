@@ -124,6 +124,17 @@ def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
     cputime = time.clock() - start_clock
     assert cputime < 1 / 5.0 * built_ccc['cputime']
 
+def test_delete_deps(built_ccc, ccc_kwargs):
+    AbraCadabra = build_convergence_curve_pipeline(
+        one_bit_sum.GenSampleOneBitSum, generate_in_batch=True)
+    AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
+    n_del = AbraCadabra_inst.delete_deps()
+    start_clock = time.clock()
+    luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8,
+                log_level='ERROR')
+    cputime = time.clock() - start_clock
+    assert 0.9 * built_ccc['cputime'] < cputime < 1.1 * built_ccc['cputime']
+
 
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
 def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):

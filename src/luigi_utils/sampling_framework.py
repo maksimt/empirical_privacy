@@ -8,7 +8,8 @@ import numpy as np
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
     MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.target_mixins import AutoLocalOutputMixin, LoadInputDictMixin
+from luigi_utils.target_mixins import AutoLocalOutputMixin, \
+    LoadInputDictMixin, DeleteDepsRecursively
 
 
 def ComputeConvergenceCurve(
@@ -27,6 +28,7 @@ _CP = namedtuple('CurvePoint', ['trial', 'training_set_size'])
 class _ComputeConvergenceCurve(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
+    DeleteDepsRecursively,
     luigi.Task,
     ABC
     ):
@@ -101,6 +103,7 @@ def EvaluateStatisticalDistance(samplegen: '_GenSamples',
 class _EvaluateStatisticalDistance(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
+    DeleteDepsRecursively,
     luigi.Task,
     ABC
     ):
@@ -152,6 +155,7 @@ def FitModel(gen_samples_type):
 
 class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
                 LoadInputDictMixin,
+                DeleteDepsRecursively,
                 luigi.Task,
                 ABC):
     dataset_settings = luigi.DictParameter()
@@ -242,6 +246,7 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
 class _GenSamples(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
+    DeleteDepsRecursively,
     luigi.Task,
     ABC
     ):
@@ -315,6 +320,7 @@ Sample = namedtuple('Sample', ['x', 'y'])
 class GenSample(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
+    DeleteDepsRecursively,
     luigi.Task,
     ABC
     ):
