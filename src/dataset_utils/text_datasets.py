@@ -26,6 +26,9 @@ def load_dataset(dataset_name):
     if dataset_name == '20NG':
         return twenty_ds()
 
+def _vectorizer() -> CountVectorizer:
+    return CountVectorizer(max_df=0.1, min_df=10,
+                                    stop_words='english')
 
 @memory.cache
 def twenty_ds():
@@ -36,8 +39,7 @@ def twenty_ds():
                                    random_state=1, data_home='/datasets',
                                    remove=('headers', 'footers', 'quotes'))
 
-    tf_vectorizer = CountVectorizer(max_df=0.1, min_df=10,
-                                    stop_words='english')
+    tf_vectorizer = _vectorizer()
 
     Xtr = tf_vectorizer.fit_transform(twenty_tr.data)
     Xte = tf_vectorizer.fit_transform(twenty_te.data)
@@ -60,14 +62,24 @@ def get_twenty_doc(doc_ind, subset='train'):
     twenty = fetch_20newsgroups(shuffle=True, subset=subset,
                                    random_state=1, data_home='/datasets',
                                    remove=('headers', 'footers', 'quotes'))
-    ds = twenty_ds()
-    X = ds['Xtr']
-    if subset=='test':
-        X = ds['Xte']
-    n,d = X.shape
+    tf_vectorizer = _vectorizer()
+    tf_vectorizer.fit(twenty.data)
+    X = tf_vectorizer.transform(twenty.data)
+    n, d = X.shape
+
     idf = np.log(n/(np.sum(X>0,0)+1))
-    return {'text': twenty.data[doc_ind],
-            'idf': X[doc_ind,:].multiply(idf).sum()}
+    x_tfidf = X[doc_ind,:].multiply(idf).toarray().ravel()
+
+    J = x_tfidf>0
+    words = {ind:word for (word,ind) in tf_vectorizer.vocabulary_.items()}
+    vocab = [words[j] for j in np.argwhere(J).ravel()]
+    I = np.argsort(x_tfidf[J])[::-1]
+    vocab = [vocab[i] for i in I]
+
+    rtv = {'text': twenty.data[doc_ind],
+            'tfidf': x_tfidf.sum(),
+            'words': zip(x_tfidf[J][I], vocab)}
+    return rtv
 
 def _normalize(X, axis=1):
     return X / (X.sum(axis) + np.spacing(10))
