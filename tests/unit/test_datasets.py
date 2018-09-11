@@ -40,3 +40,7 @@ def test_get_ml1m_user():
     assert R[R.MovieID == 914].rating.iloc[0] == 3
     assert R[R.MovieID == 3408].rating.iloc[0] == 4
     print(vals)
+
+def test_get_twenty_doc():
+    x = text_datasets.get_twenty_doc(0)
+    assert 'biased' in x['text']

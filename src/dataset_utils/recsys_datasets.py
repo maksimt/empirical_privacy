@@ -28,7 +28,7 @@ def load_dataset(dataset_name):
 
 
 def load_ml1m(test_size=0.3, random_state=0):
-    UI, R, n, d = get_ml1m_ratings()
+    UI, R, n, d, I_ind = get_ml1m_ratings()
 
     UItr, UIte, Rtr, Rte = train_test_split(
         UI,
@@ -45,6 +45,7 @@ def load_ml1m(test_size=0.3, random_state=0):
                                shape=(n, d)).tocsr()
 
     return {'Xtr': Xtr, 'Xte': Xte, 'ytr': None, 'yte': None}
+
 
 def get_ml1m_user(user_ind, test_size=0.3, random_state=0):
     UI, R, n, d, I_ind = get_ml1m_ratings()
