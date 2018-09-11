@@ -66,7 +66,7 @@ def get_twenty_doc(doc_ind, subset='train'):
     tf_vectorizer.fit(twenty.data)
     X = tf_vectorizer.transform(twenty.data)
     X, I_rows_tr, I_cols_tr = _remove_zero_rows_cols(X, min_row=100,
-                                                       min_col=100)
+                                                       min_col=10)
     X = _normalize(X)
 
     n, d = X.shape
