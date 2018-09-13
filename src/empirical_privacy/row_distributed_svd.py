@@ -7,7 +7,8 @@ from scipy.sparse import csr_matrix, linalg, vstack as sparse_vstack, issparse
 from dataset_utils.common import load_dataset
 from empirical_privacy.row_distributed_common import \
     gen_attacker_and_defender_indices
-from luigi_utils.privacy_estimator_mixins import KNNFitterMixin
+from luigi_utils.privacy_estimator_mixins import KNNFitterMixin,\
+    ExpectationFitterMixin
 from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
 
@@ -155,9 +156,19 @@ class FitKNNModelSVD(
     ):
     pass
 
+class FitExpModelSVD(
+    ExpectationFitterMixin(statistic_column=4),
+    FitModel(GenSamplesSVD)
+    ):
+    pass
 
 class EvaluateKNNSVDSD(
     EvaluateStatisticalDistance(samplegen=GenSamplesSVD, model=FitKNNModelSVD)
+    ):
+    pass
+
+class EvaluateExpSVDSD(
+    EvaluateStatisticalDistance(samplegen=GenSamplesSVD, model=FitExpModelSVD)
     ):
     pass
 
@@ -165,6 +176,9 @@ class EvaluateKNNSVDSD(
 class CCCSVD(ComputeConvergenceCurve(EvaluateKNNSVDSD)):
     pass
 
+
+class ExpCCCSVD(ComputeConvergenceCurve(EvaluateExpSVDSD)):
+    pass
 
 def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
                                    n_trials_per_training_set_size=3,
