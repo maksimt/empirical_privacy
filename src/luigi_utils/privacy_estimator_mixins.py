@@ -8,14 +8,17 @@ from sklearn.metrics import make_scorer, accuracy_score
 from sklearn.model_selection import GridSearchCV
 
 
-def ExpectationFitterMixin(bandwidth_method=None):
-    class T(DensityEstFitterMixin(
-        bandwidth_method)):  # picks up the fit_model method
+def ExpectationFitterMixin(statistic_column=0, bandwidth_method=None):
+    class T(DensityEstFitterMixin(statistic_column, bandwidth_method)):
+        # picks up the fit_model method
+
         @classmethod
         def compute_classification_accuracy(self, model=None, *samples):
             assert model is not None, 'Model must be fitted first'
             f0, f1 = model['f0'], model['f1']
             X, y = _stack_samples(samples)
+            X = X[:, self.statistic_column]  # we pick one statistic given a
+            # multidimensional sample
             X = X.ravel()
             f0x = f0(X)
             f1x = f1(X)
@@ -32,13 +35,17 @@ def _assert_at_most_1dim(*Xs):
             assert X.shape[1]==1, 'Xs must be at most 1 dimensional'
 
 
-def DensityEstFitterMixin(bandwidth_method=None):
+def DensityEstFitterMixin(statistic_column=0, bandwidth_method=None):
     class T(object):
         def fit_model(self, negative_samples, positive_samples):
             X0 = negative_samples['X']
             X1 = positive_samples['X']
             y0 = negative_samples['y']
             y1 = positive_samples['y']
+
+            X0 = X0[:, self.statistic_column]  # we pick one dimension of a
+            # multi-dimensional sample
+            X1 = X1[:, self.statistic_column]
 
             _assert_at_most_1dim(X0, X1)
 
@@ -66,6 +73,7 @@ def DensityEstFitterMixin(bandwidth_method=None):
                    quad(lambda x: np.abs(f0(x) - f1(x)), -np.inf, np.inf)[0]
 
     T.bandwidth_method = bandwidth_method
+    T.statistic_column = statistic_column
 
     # TODO: Unclear how to handle validation set here
 

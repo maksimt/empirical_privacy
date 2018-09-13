@@ -24,29 +24,6 @@ def svd_dataset_settings(part_fraction=0.3,
         }
 
 
-def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
-                                   n_trials_per_training_set_size=3,
-                                   validation_set_size=64,
-                                   n_max=256,
-                                   dataset_settings=None
-                                   ):
-    if dataset_settings is None:
-        dataset_settings = svd_dataset_settings()
-
-    CCCs = []
-    for doc_i in range(n_docs):
-        ds = deepcopy(dataset_settings)
-        ds['doc_ind'] = doc_i
-        CCCs.append(CCCSVD(
-            n_trials_per_training_set_size=n_trials_per_training_set_size,
-            n_max=n_max,
-            dataset_settings=ds,
-            validation_set_size=validation_set_size
-            )
-            )
-    return CCCs
-
-
 class GenSVDSample(GenSample):
     """
     dataset_settings = luigi.DictParameter()
@@ -171,6 +148,7 @@ class GenSamplesSVD(
     pass
 
 
+
 class FitKNNModelSVD(
     KNNFitterMixin(neighbor_method='sqrt'),
     FitModel(GenSamplesSVD)
@@ -186,3 +164,27 @@ class EvaluateKNNSVDSD(
 
 class CCCSVD(ComputeConvergenceCurve(EvaluateKNNSVDSD)):
     pass
+
+
+def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
+                                   n_trials_per_training_set_size=3,
+                                   validation_set_size=64,
+                                   n_max=256,
+                                   dataset_settings=None,
+                                   CCCType = CCCSVD
+                                   ):
+    if dataset_settings is None:
+        dataset_settings = svd_dataset_settings()
+
+    CCCs = []
+    for doc_i in range(n_docs):
+        ds = deepcopy(dataset_settings)
+        ds['doc_ind'] = doc_i
+        CCCs.append(CCCType(
+            n_trials_per_training_set_size=n_trials_per_training_set_size,
+            n_max=n_max,
+            dataset_settings=ds,
+            validation_set_size=validation_set_size
+            )
+            )
+    return CCCs

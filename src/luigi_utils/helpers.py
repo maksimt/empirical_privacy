@@ -12,13 +12,13 @@ from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
 
 
 def build_convergence_curve_pipeline(GenSampleType: GenSample,
-                                     generate_in_batch=False,
+                                     gensample_kwargs,
+                                     fitter_kwargs,
                                      fitter='knn',
                                      ) -> ComputeConvergenceCurve:
     gs_name = GenSampleType.__name__
 
-    class GSs(GenSamples(GenSampleType,
-                         generate_in_batch=generate_in_batch)):
+    class GSs(GenSamples(GenSampleType, **gensample_kwargs)):
         pass
 
     GSs.__name__ = gs_name + 'GenSamples'
@@ -30,7 +30,7 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     elif fitter == 'expectation':
         F = ExpectationFitterMixin
 
-    class FM(F(), FitModel(GSs)):
+    class FM(F(**fitter_kwargs), FitModel(GSs)):
         pass
 
     FM.__name__ = gs_name + 'FitModel' + fitter
