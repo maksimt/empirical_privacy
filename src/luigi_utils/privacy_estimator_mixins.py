@@ -43,9 +43,11 @@ def DensityEstFitterMixin(statistic_column=0, bandwidth_method=None):
             y0 = negative_samples['y']
             y1 = positive_samples['y']
 
-            X0 = X0[:, self.statistic_column]  # we pick one dimension of a
+            if X0.ndim >= 2:
+                X0 = X0[:, self.statistic_column]  # we pick one dimension of a
             # multi-dimensional sample
-            X1 = X1[:, self.statistic_column]
+            if X1.ndim >= 2:
+                X1 = X1[:, self.statistic_column]
 
             _assert_at_most_1dim(X0, X1)
 
