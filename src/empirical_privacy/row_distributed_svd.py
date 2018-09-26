@@ -159,7 +159,8 @@ class GenFullViewSVDSample(GenSVDSample):
     def gen_sample(self, sample_number: int):
         Xs = self._gen_Xs(sample_number)
         U, S, Vt = self.svd(Xs)
-        return Vt.ravel()
+        y = 1 if self.generate_positive_sample else 0
+        return Vt.ravel(), np.array([y])
 
 
 class GenSamplesSVD(

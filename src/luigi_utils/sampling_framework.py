@@ -299,7 +299,6 @@ class _GenSamples(
             for sn in range(self.n_prev, self.num_samples):
                 self.set_progress_percentage(100*(sn-self.n_prev)/n_to_make)
                 samples.append(f_GS(sample_number=sn))
-
         X, y = zip(*samples)
         if prev['X'] is not None:
             X = self.x_concatenator((prev['X'], self.x_concatenator(X)))
@@ -309,7 +308,6 @@ class _GenSamples(
             y = self.y_concatenator((prev['y'], self.y_concatenator(y)))
         else:
             y = self.y_concatenator(y)
-
         with self.output().open('w') as f:
             dill.dump({'X': X, 'y': y}, f, 2)
 

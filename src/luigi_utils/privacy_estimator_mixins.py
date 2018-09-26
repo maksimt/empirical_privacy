@@ -92,7 +92,7 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
 
             X = np.vstack((X0, X1))
             y = np.concatenate((y0, y1))
-            num_samples = X.size
+            num_samples = X.shape[0]
             neighbor_method = self.neighbor_method
             KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
             if hasattr(neighbor_method, 'lower'):  # string
