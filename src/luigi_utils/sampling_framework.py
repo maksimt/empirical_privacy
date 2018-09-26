@@ -39,6 +39,15 @@ class _ComputeConvergenceCurve(
     validation_set_size = luigi.IntParameter(default=200)
 
     @property
+    def priority(self):
+        """
+        The priority of a particular CCC. Higher is better.
+        1. Lower n_max have higher priority
+        2. Lower n_trials have higher priority
+        """
+        return 100*1/self.n_max + 1*1/self.n_trials_per_training_set_size
+
+    @property
     def pow_min(self):
         return np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
                         + np.spacing(1)).astype(np.int)

@@ -3,6 +3,7 @@ from functools import partial
 
 import numpy as np
 from scipy.sparse import csr_matrix, linalg, vstack as sparse_vstack, issparse
+import luigi
 
 from dataset_utils.common import load_dataset
 from empirical_privacy.row_distributed_common import \
@@ -241,3 +242,24 @@ def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
             )
             )
     return CCCs
+
+class All(luigi.WrapperTask):
+    def requires(self):
+        CCCs = []
+
+        for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12]:
+            for CCCType in [CCCFVSVD]:
+                for dataset in ['20NG', 'ml-1m']:
+                    for trials in range(5, 10):
+                        for part_fraction in [0.01, 0.1]:
+                            ds = svd_dataset_settings(dataset_name=dataset,
+                                                      part_fraction=part_fraction)
+                            _CCCs = gen_SVD_CCCs_for_multiple_docs(n_max=n_max,
+                                                                   validation_set_size=512,
+                                                                   n_docs=5,
+                                                                   n_trials_per_training_set_size=trials,
+                                                                   dataset_settings=ds,
+                                                                   CCCType=CCCType
+                                                                   )
+                            CCCs += _CCCs
+        return CCCs
