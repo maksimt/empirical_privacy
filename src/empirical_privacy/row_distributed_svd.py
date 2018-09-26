@@ -70,13 +70,13 @@ class GenSVDSample(GenSample):
                 self.toarray = lambda x: x
         return self.Xtr
 
-    def gen_sample(self, sample_number: int):
+    def _gen_Xs(self, sample_number: int) -> np.ndarray:
         n = self.X.shape[0]
         Inds = gen_attacker_and_defender_indices(
             n,
             self.dataset_settings['part_fraction'],
             self.dataset_settings['doc_ind'],
-            self.random_seed+'sample{}'.format(sample_number)
+            self.random_seed + 'sample{}'.format(sample_number)
             )
         I_atk = Inds['I_attacker']
         if self.generate_positive_sample:
@@ -88,6 +88,10 @@ class GenSVDSample(GenSample):
         X_atk = self.X[I_atk, :]
 
         Xs = self.vstack((X_atk, X_def))
+        return Xs
+
+    def _gen_XTX_est(self, sample_number: int) -> np.ndarray:
+        Xs = self._gen_Xs(sample_number)
 
         if self.dataset_settings['SVD_type'] == 'hidden_eigs':
             U, S, Vt = self.svd(Xs)
@@ -106,6 +110,10 @@ class GenSVDSample(GenSample):
         else:
             raise NotImplementedError('SVD_type={} is not implemented.'.format(
                 self.dataset_settings['SVD_type']))
+        return XTX_est
+
+    def gen_sample(self, sample_number: int):
+        XTX_est = self._gen_XTX_est(sample_number)
 
         x = self.format_x(self.X[self.dataset_settings['doc_ind'], :])
 
@@ -143,12 +151,28 @@ class GenSVDSample(GenSample):
         return stats, np.array([y])
 
 
+class GenFullViewSVDSample(GenSVDSample):
+    """
+    Generate SVD samples where the sample is the entire V^T matrix reshaped
+    as a vector
+    """
+    def gen_sample(self, sample_number: int):
+        Xs = self._gen_Xs(sample_number)
+        U, S, Vt = self.svd(Xs)
+        return Vt.ravel()
+
+
 class GenSamplesSVD(
     GenSamples(GenSVDSample, x_concatenator=np.vstack, generate_in_batch=True)
     ):
     pass
 
-
+class GenFVSamplesSVD(
+    GenSamples(GenFullViewSVDSample,
+               x_concatenator=np.vstack,
+               generate_in_batch=True)
+    ):
+    pass
 
 class FitKNNModelSVD(
     KNNFitterMixin(neighbor_method='sqrt'),
@@ -162,6 +186,12 @@ class FitExpModelSVD(
     ):
     pass
 
+class FitKNNFVModelSVD(
+    KNNFitterMixin(neighbor_method='sqrt'),
+    FitModel(GenFVSamplesSVD)
+    ):
+    pass
+
 class EvaluateKNNSVDSD(
     EvaluateStatisticalDistance(samplegen=GenSamplesSVD, model=FitKNNModelSVD)
     ):
@@ -172,12 +202,20 @@ class EvaluateExpSVDSD(
     ):
     pass
 
+class EvaluateKNNFVSVDSD(
+    EvaluateStatisticalDistance(samplegen=GenFVSamplesSVD,
+                                model=FitKNNFVModelSVD)
+    ):
+    pass
 
 class CCCSVD(ComputeConvergenceCurve(EvaluateKNNSVDSD)):
     pass
 
 
 class ExpCCCSVD(ComputeConvergenceCurve(EvaluateExpSVDSD)):
+    pass
+
+class CCCFVSVD(ComputeConvergenceCurve(EvaluateKNNFVSVDSD)):
     pass
 
 def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
