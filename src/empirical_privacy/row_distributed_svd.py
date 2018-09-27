@@ -244,11 +244,22 @@ def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
     return CCCs
 
 class All(luigi.WrapperTask):
+    CCCType = luigi.Parameter()
+
+
     def requires(self):
+        CCCTypes = []
+        if 'CCCFVSVD' in self.CCCType:
+            CCCTypes.append(CCCFVSVD)
+        if 'ExpCCCSVD' in self.CCCType:
+            CCCTypes.append(ExpCCCSVD)
+        if 'CCCSVD' in self.CCCType:
+            CCCTypes.append(CCCSVD)
+
         CCCs = []
 
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12]:
-            for CCCType in [CCCFVSVD]:
+            for CCCType in CCCTypes:
                 for dataset in ['20NG', 'ml-1m']:
                     for trials in range(5, 10):
                         for part_fraction in [0.01, 0.1]:
