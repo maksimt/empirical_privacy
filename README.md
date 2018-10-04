@@ -32,9 +32,10 @@ dataset used for learning as a fraction of the original 20NG or ML-1M dataset (w
 
 **To reproduce** our results:
 1. Open a terminal from inside Jupyter in the docker container.
-2. Run `luigid`
-3. Run the first two cells of the "Row Distributed SVD" notebook.
-4. Run all the cells in the "Analyze Completed CCCs" notebook.
+2. Run `luigid` in one terminal.
+3. `cd src/empirical_privacy`
+4. Execute the task `luigi --module row_distributed_svd All --CCCType=CCCSVD --workers 4`
+5. Run all the cells in the "Analyze Completed CCCs" notebook.
 
 ### Using the luigi-based sampling framework for your own empirical privacy experiments
 
