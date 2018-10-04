@@ -261,13 +261,13 @@ class All(luigi.WrapperTask):
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
             for CCCType in CCCTypes:
                 for dataset in ['20NG', 'ml-1m']:
-                    for trials in range(5, 20):
+                    for trials in range(5, 31):
                         for part_fraction in [0.01, 0.1]:
                             ds = svd_dataset_settings(dataset_name=dataset,
                                                       part_fraction=part_fraction)
                             _CCCs = gen_SVD_CCCs_for_multiple_docs(n_max=n_max,
-                                                                   validation_set_size=512,
-                                                                   n_docs=5,
+                                                                   validation_set_size=2**10,
+                                                                   n_docs=10,
                                                                    n_trials_per_training_set_size=trials,
                                                                    dataset_settings=ds,
                                                                    CCCType=CCCType
