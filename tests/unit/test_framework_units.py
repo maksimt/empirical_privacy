@@ -100,7 +100,7 @@ def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape):
 @pytest.fixture(scope='session')
 def built_ccc(ccc_kwargs):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           generate_in_batch=True)
+                                           gensample_kwargs={'generate_in_batch':True})
     CCC2_inst = CCC(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
@@ -116,7 +116,7 @@ def test_ccc_pipeline_builder(simple_ccc, built_ccc):
 
 def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
     AbraCadabra = build_convergence_curve_pipeline(
-        one_bit_sum.GenSampleOneBitSum, generate_in_batch=True)
+        one_bit_sum.GenSampleOneBitSum, gensample_kwargs={'generate_in_batch':True})
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8,
@@ -126,7 +126,7 @@ def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
 
 def test_delete_deps(built_ccc, ccc_kwargs):
     AbraCadabra = build_convergence_curve_pipeline(
-        one_bit_sum.GenSampleOneBitSum, generate_in_batch=True)
+        one_bit_sum.GenSampleOneBitSum, gensample_kwargs={'generate_in_batch':True})
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     n_del = AbraCadabra_inst.delete_deps()
     start_clock = time.clock()
@@ -139,7 +139,7 @@ def test_delete_deps(built_ccc, ccc_kwargs):
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
 def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           generate_in_batch=True,
+                                           gensample_kwargs={'generate_in_batch':True},
                                            fitter=fitter)
     TheCCC = CCC(**ccc_kwargs)
     luigi.build([TheCCC], local_scheduler=True, workers=1,
@@ -151,7 +151,7 @@ def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
 
 def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           generate_in_batch=True,
+                                           gensample_kwargs={'generate_in_batch':True},
                                            fitter='knn')
     CCCs = []
     for rs in range(5,10):

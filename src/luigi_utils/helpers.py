@@ -13,10 +13,15 @@ from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
 
 def build_convergence_curve_pipeline(GenSampleType: GenSample,
                                      gensample_kwargs,
-                                     fitter_kwargs,
+                                     fitter_kwargs=None,
                                      fitter='knn',
                                      ) -> ComputeConvergenceCurve:
     gs_name = GenSampleType.__name__
+
+    if fitter_kwargs is None:
+        fitter_kwargs = {}
+        if fitter is not 'knn':
+            fitter_kwargs = {'statistic_column':0}
 
     class GSs(GenSamples(GenSampleType, **gensample_kwargs)):
         pass

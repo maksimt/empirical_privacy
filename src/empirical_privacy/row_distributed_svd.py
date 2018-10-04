@@ -88,11 +88,11 @@ class GenSVDSample(GenSample):
         X_def = self.X[I_def, :]
         X_atk = self.X[I_atk, :]
 
-        Xs = self.vstack((X_atk, X_def))
-        return Xs
+        return X_atk, X_def
 
     def _gen_XTX_est(self, sample_number: int) -> np.ndarray:
-        Xs = self._gen_Xs(sample_number)
+        X_atk, X_def = self._gen_Xs(sample_number)
+        Xs = self.vstack((X_atk, X_def))
 
         if self.dataset_settings['SVD_type'] == 'hidden_eigs':
             U, S, Vt = self.svd(Xs)
