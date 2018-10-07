@@ -1,5 +1,9 @@
 # empirical_privacy
 
+This repository contains the code necessary to reproduce results in our paper
+*Empirical Methods for Estimating Privacy*.
+It also has a framework that makes it easy to plug in your own problem setting and study privacy there-in.
+
 ### Basic how to get started
 
 1. Clone & Build+Run Docker (the build takes 5-10 min):
