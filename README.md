@@ -1,5 +1,10 @@
 # empirical_privacy
 
+This repository contains the code necessary to reproduce results in our paper
+*Empirical Methods for Estimating Privacy*.
+We also provide our privacy estimation algorithms as a framework built in `python` using `docker` and `luigi`.
+This means that you can study privacy in a problem setting that you care about by writing a small problem-specific plugin.
+
 ### Basic how to get started
 
 1. Clone & Build+Run Docker (the build takes 5-10 min):
