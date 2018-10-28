@@ -1,35 +1,15 @@
-import time
 import copy
+import time
 
 import dill
 import luigi
 import numpy as np
 import pytest
 
-from empirical_privacy import one_bit_sum_joblib, one_bit_sum
+from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.helpers import build_convergence_curve_pipeline,\
+from luigi_utils.helpers import build_convergence_curve_pipeline, \
     load_completed_CCCs_into_dataframe
-
-
-@pytest.fixture(scope='session')
-def ds_rs():
-    return {
-        'dataset_settings': {
-            'n_trials'      : 40, 'prob_success': 0.5,
-            'gen_distr_type': 'binom'
-        },
-        'random_seed'     : '1338'
-    }
-
-
-def test_pytest():
-    assert 3 == (2 + 1)
-
-
-def test_import():
-    X0, X1, y0, y1 = one_bit_sum_joblib.gen_data(10, 0.5, 100, 0)
-    assert X0.shape[0] == 100
 
 
 def test_gen_samples_one_bit(ds_rs):
@@ -100,7 +80,9 @@ def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape):
 @pytest.fixture(scope='session')
 def built_ccc(ccc_kwargs):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           gensample_kwargs={'generate_in_batch':True})
+                                           gensample_kwargs={
+                                               'generate_in_batch': True
+                                           })
     CCC2_inst = CCC(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
@@ -116,7 +98,8 @@ def test_ccc_pipeline_builder(simple_ccc, built_ccc):
 
 def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
     AbraCadabra = build_convergence_curve_pipeline(
-        one_bit_sum.GenSampleOneBitSum, gensample_kwargs={'generate_in_batch':True})
+        one_bit_sum.GenSampleOneBitSum,
+        gensample_kwargs={'generate_in_batch': True})
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8,
@@ -124,9 +107,11 @@ def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
     cputime = time.clock() - start_clock
     assert cputime < 1 / 5.0 * built_ccc['cputime']
 
+
 def test_delete_deps(built_ccc, ccc_kwargs):
     AbraCadabra = build_convergence_curve_pipeline(
-        one_bit_sum.GenSampleOneBitSum, gensample_kwargs={'generate_in_batch':True})
+        one_bit_sum.GenSampleOneBitSum,
+        gensample_kwargs={'generate_in_batch': True})
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     n_del = AbraCadabra_inst.delete_deps()
     start_clock = time.clock()
@@ -139,7 +124,9 @@ def test_delete_deps(built_ccc, ccc_kwargs):
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
 def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           gensample_kwargs={'generate_in_batch':True},
+                                           gensample_kwargs={
+                                               'generate_in_batch': True
+                                           },
                                            fitter=fitter)
     TheCCC = CCC(**ccc_kwargs)
     luigi.build([TheCCC], local_scheduler=True, workers=1,
@@ -149,16 +136,19 @@ def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
     assert res['sd_matrix'].shape == expected_sd_matrix_shape
     assert np.all((0 <= res['sd_matrix']) & (res['sd_matrix'] <= 1))
 
+
 def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
-                                           gensample_kwargs={'generate_in_batch':True},
+                                           gensample_kwargs={
+                                               'generate_in_batch': True
+                                           },
                                            fitter='knn')
     CCCs = []
-    for rs in range(5,10):
+    for rs in range(5, 10):
         ck = copy.deepcopy(ccc_kwargs)
         ck['dataset_settings']['n_trials'] = rs
         CCCs.append(CCC(**ck))
     luigi.build(CCCs, local_scheduler=True, workers=4, log_level='ERROR')
     DF = load_completed_CCCs_into_dataframe(CCCs)
     n_rows_exp = np.prod(expected_sd_matrix_shape) * 5
-    assert DF.shape==(n_rows_exp, 9)
+    assert DF.shape == (n_rows_exp, 9)
