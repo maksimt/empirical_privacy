@@ -3,7 +3,8 @@ import pytest
 import dill
 import luigi
 
-from empirical_privacy.row_distributed_svd import CCCSVD, GenSVDSample, CCCFVSVD
+from empirical_privacy.row_distributed_svd import \
+    CCCSVD, GenSVDSample, CCCFVSVD, AsymptoticAnalysisSVD
 
 @pytest.fixture(scope='function')
 def ccc_kwargs(request):
@@ -59,3 +60,18 @@ def test_full_view_samples(ccc_kwargs):
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
     assert res['sd_matrix'].shape == (3, 2)
+
+@pytest.mark.parametrize('ccc_kwargs', ['hidden_eigs'], indirect=['ccc_kwargs'])
+def test_asymptotic_accuracy(ccc_kwargs):
+    t = 0.1
+    AA = AsymptoticAnalysisSVD(
+        **ccc_kwargs,
+        confidence_interval_width=t,
+        confidence_interval_prob=0.9
+    )
+    luigi.build([AA], local_scheduler=True, workers=1, log_level='WARNING')
+    with AA.output().open() as f:
+        res = dill.load(f)
+    import pdb;
+    pdb.set_trace()
+    assert res['upper_bound'] <= 0.55

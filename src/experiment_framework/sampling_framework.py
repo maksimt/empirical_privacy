@@ -8,7 +8,7 @@ import numpy as np
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
     MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.target_mixins import AutoLocalOutputMixin, \
+from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
 
 

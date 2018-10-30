@@ -5,9 +5,9 @@ import copy
 
 import pandas as pd
 
-from luigi_utils.privacy_estimator_mixins import DensityEstFitterMixin, \
+from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin, \
     ExpectationFitterMixin, KNNFitterMixin
-from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
+from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve, _ComputeConvergenceCurve
 
 

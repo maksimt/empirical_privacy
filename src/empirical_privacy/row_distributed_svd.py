@@ -8,10 +8,11 @@ import luigi
 from dataset_utils.common import load_dataset
 from empirical_privacy.row_distributed_common import \
     gen_attacker_and_defender_indices
-from luigi_utils.privacy_estimator_mixins import KNNFitterMixin,\
+from experiment_framework.privacy_estimator_mixins import KNNFitterMixin,\
     ExpectationFitterMixin
-from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
+from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
+from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 
 
 def svd_dataset_settings(part_fraction=0.3,
@@ -77,7 +78,7 @@ class GenSVDSample(GenSample):
             n,
             self.dataset_settings['part_fraction'],
             self.dataset_settings['doc_ind'],
-            self.random_seed + 'sample{}'.format(sample_number)
+            '{}sample{}'.format(self.random_seed, sample_number)
             )
         I_atk = Inds['I_attacker']
         if self.generate_positive_sample:
@@ -177,7 +178,7 @@ class GenFVSamplesSVD(
     pass
 
 class FitKNNModelSVD(
-    KNNFitterMixin(neighbor_method='sqrt'),
+    KNNFitterMixin(neighbor_method='gyorfi'),
     FitModel(GenSamplesSVD)
     ):
     pass
@@ -189,7 +190,7 @@ class FitExpModelSVD(
     pass
 
 class FitKNNFVModelSVD(
-    KNNFitterMixin(neighbor_method='sqrt'),
+    KNNFitterMixin(neighbor_method='gyorfi'),
     FitModel(GenFVSamplesSVD)
     ):
     pass
@@ -218,6 +219,9 @@ class ExpCCCSVD(ComputeConvergenceCurve(EvaluateExpSVDSD)):
     pass
 
 class CCCFVSVD(ComputeConvergenceCurve(EvaluateKNNFVSVDSD)):
+    pass
+
+class AsymptoticAnalysisSVD(ComputeAsymptoticAccuracy(CCCSVD)):
     pass
 
 def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
@@ -260,14 +264,14 @@ class All(luigi.WrapperTask):
 
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
             for CCCType in CCCTypes:
-                for dataset in ['20NG', 'ml-1m']:
-                    for trials in range(5, 31):
-                        for part_fraction in [0.01, 0.1]:
+                for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
+                    for trials in range(5, 10+1):
+                        for part_fraction in [0.01]:
                             ds = svd_dataset_settings(dataset_name=dataset,
                                                       part_fraction=part_fraction)
                             _CCCs = gen_SVD_CCCs_for_multiple_docs(n_max=n_max,
                                                                    validation_set_size=2**10,
-                                                                   n_docs=10,
+                                                                   n_docs=5,
                                                                    n_trials_per_training_set_size=trials,
                                                                    dataset_settings=ds,
                                                                    CCCType=CCCType

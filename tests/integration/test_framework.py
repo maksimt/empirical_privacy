@@ -5,12 +5,37 @@ import dill
 import luigi
 import numpy as np
 import pytest
+from scipy.stats import binom
+
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.helpers import build_convergence_curve_pipeline, \
+from experiment_framework.helpers import build_convergence_curve_pipeline, \
     load_completed_CCCs_into_dataframe
 
+
+def B_pmf(k, n, p):
+    return binom(n, p).pmf(k)
+def B0_pmf(k, n, p):
+    return B_pmf(k, n-1, p)
+def B1_pmf(k, n, p):
+    return B_pmf(k-1, n-1, p)
+def sd(N, P):
+    return 0.5*np.sum(abs(B0_pmf(i, N, P) - B1_pmf(i, N, P)) for i in range(N+1))
+
+@pytest.fixture(scope='session')
+def ds_rs():
+    n = 40
+    p = 0.5
+    return {
+        'dataset_settings': {
+            'n_trials'      : n,
+            'prob_success': p,
+            'gen_distr_type': 'binom',
+        },
+        'random_seed'     : '1338',
+        'sd': sd(n, p)
+    }
 
 def test_gen_samples_one_bit(ds_rs):
     GSTask = one_bit_sum.GenSamplesOneBit(

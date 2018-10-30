@@ -3,9 +3,10 @@ from math import sqrt
 import numpy as np
 from scipy.stats import binom, norm
 
-from luigi_utils.privacy_estimator_mixins import KNNFitterMixin
-from luigi_utils.sampling_framework import GenSamples, GenSample, FitModel, \
+from experiment_framework.privacy_estimator_mixins import KNNFitterMixin
+from experiment_framework.sampling_framework import GenSamples, GenSample, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
+from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 
 
 class GenSampleOneBitSum(GenSample):
@@ -53,4 +54,8 @@ class EvaluateKNNOneBitSD(EvaluateStatisticalDistance(
 
 
 class ComputeOneBitKNNConvergence(ComputeConvergenceCurve(EvaluateKNNOneBitSD)):
+    pass
+
+class OneBitAsymptoticAccuracy(
+    ComputeAsymptoticAccuracy(ComputeOneBitKNNConvergence)):
     pass
