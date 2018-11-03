@@ -224,57 +224,48 @@ class CCCFVSVD(ComputeConvergenceCurve(EvaluateKNNFVSVDSD)):
 class AsymptoticAnalysisSVD(ComputeAsymptoticAccuracy(CCCSVD)):
     pass
 
-def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
-                                   n_trials_per_training_set_size=3,
-                                   validation_set_size=64,
-                                   n_max=256,
-                                   dataset_settings=None,
-                                   CCCType = CCCSVD
-                                   ):
+def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
+                                          p=0.99,
+                                          n_docs=10,
+                                          n_trials_per_training_set_size=3,
+                                          validation_set_size=64,
+                                          n_max=256,
+                                          dataset_settings=None,
+                                          AAType = AsymptoticAnalysisSVD
+                                          ):
     if dataset_settings is None:
         dataset_settings = svd_dataset_settings()
 
-    CCCs = []
+    AAs = []
     for doc_i in range(n_docs):
         ds = deepcopy(dataset_settings)
         ds['doc_ind'] = doc_i
-        CCCs.append(CCCType(
+        AAs.append(AAType(
+            confidence_interval_width=t,
+            confidence_interval_prob=p,
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,
             dataset_settings=ds,
             validation_set_size=validation_set_size
             )
             )
-    return CCCs
+    return AAs
 
 class All(luigi.WrapperTask):
     CCCType = luigi.Parameter()
-
-
     def requires(self):
-        CCCTypes = []
-        if 'CCCFVSVD' in self.CCCType:
-            CCCTypes.append(CCCFVSVD)
-        if 'ExpCCCSVD' in self.CCCType:
-            CCCTypes.append(ExpCCCSVD)
-        if 'CCCSVD' in self.CCCType:
-            CCCTypes.append(CCCSVD)
-
-        CCCs = []
-
+        AAs = []
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
-            for CCCType in CCCTypes:
-                for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
-                    for trials in range(5, 10+1):
-                        for part_fraction in [0.01]:
-                            ds = svd_dataset_settings(dataset_name=dataset,
-                                                      part_fraction=part_fraction)
-                            _CCCs = gen_SVD_CCCs_for_multiple_docs(n_max=n_max,
-                                                                   validation_set_size=2**10,
-                                                                   n_docs=5,
-                                                                   n_trials_per_training_set_size=trials,
-                                                                   dataset_settings=ds,
-                                                                   CCCType=CCCType
-                                                                   )
-                            CCCs += _CCCs
-        return CCCs
+            for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
+                for trials in range(5, 10+1):
+                    for part_fraction in [0.01]:
+                        ds = svd_dataset_settings(dataset_name=dataset,
+                                                  part_fraction=part_fraction)
+                        _AAs = gen_SVD_asymptotics_for_multiple_docs(n_max=n_max,
+                                                                      validation_set_size=2**10,
+                                                                      n_docs=5,
+                                                                      n_trials_per_training_set_size=trials,
+                                                                      dataset_settings=ds
+                                                                      )
+                        AAs += _AAs
+        return AAs

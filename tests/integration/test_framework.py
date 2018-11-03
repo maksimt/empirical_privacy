@@ -38,6 +38,10 @@ def ds_rs():
     }
 
 def test_gen_samples_one_bit(ds_rs):
+    try:
+        ds_rs.pop('sd')
+    except KeyError:
+        pass
     GSTask = one_bit_sum.GenSamplesOneBit(
         generate_positive_samples=True,
         num_samples=23,
@@ -139,11 +143,12 @@ def test_delete_deps(built_ccc, ccc_kwargs):
         gensample_kwargs={'generate_in_batch': True})
     AbraCadabra_inst = AbraCadabra(**ccc_kwargs)
     n_del = AbraCadabra_inst.delete_deps()
+    assert n_del >= 10
     start_clock = time.clock()
     luigi.build([AbraCadabra_inst], local_scheduler=True, workers=8,
                 log_level='ERROR')
     cputime = time.clock() - start_clock
-    assert 0.9 * built_ccc['cputime'] < cputime < 1.1 * built_ccc['cputime']
+    assert 0.5 * built_ccc['cputime'] < cputime < 1.5 * built_ccc['cputime']
 
 
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
