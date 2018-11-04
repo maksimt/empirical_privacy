@@ -24,8 +24,8 @@ class AllAsymptotics(luigi.WrapperTask):
         p, m = self.gen_sample_path.rsplit('.', 1)
         mod = importlib.import_module(p)
         GS = getattr(mod, m)
-        AAs = asymptotics_for_multiple_docs(self.dataset_settings,
-                                            GS)
+        # dict() so we can modify it without getting FrozenDict violations
+        AAs = asymptotics_for_multiple_docs(dict(self.dataset_settings), GS)
         return AAs
 
 
@@ -38,7 +38,7 @@ def asymptotics_for_multiple_docs(
         t=0.01,
         p=0.99,
         n_docs=10,
-        n_trials_per_training_set_size=3,
+        n_trials_per_training_set_size=10,
         validation_set_size=64,
         n_max=256,
     ):

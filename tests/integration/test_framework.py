@@ -12,7 +12,7 @@ from scipy.stats import binom
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
 from experiment_framework.helpers import build_convergence_curve_pipeline, \
-    load_completed_CCCs_into_dataframe
+    load_completed_CCCs_into_dataframe, AllAsymptotics
 
 
 def B_pmf(k, n, p):
@@ -184,6 +184,20 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
     n_rows_exp = np.prod(expected_sd_matrix_shape) * 5
     assert DF.shape == (n_rows_exp, 9)
 
+
+def test_asymptotic_generator(ds_rs):
+    All = AllAsymptotics(
+        gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
+        dataset_settings=ds_rs['dataset_settings'])
+    luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
+    AA = All.requires()[0]
+    with AA.output().open() as f:
+        res = dill.load(f)
+    assert 'mean' in res and 'upper_bound' in res
+
+
+@pytest.mark.skip(reason='will only fail if importlib changes or GenSamples '
+                         'API changes')
 def test_importlib(ds_rs):
     _path = 'empirical_privacy.one_bit_sum.GenSampleOneBitSum'
     p, m = _path.rsplit('.', 1)
