@@ -1,5 +1,7 @@
 from copy import deepcopy
 from functools import partial
+import logging
+from itertools import product
 
 import numpy as np
 from scipy.sparse import csr_matrix, linalg, vstack as sparse_vstack, issparse
@@ -8,10 +10,12 @@ import luigi
 from dataset_utils.common import load_dataset
 from empirical_privacy.row_distributed_common import \
     gen_attacker_and_defender_indices
-from luigi_utils.privacy_estimator_mixins import KNNFitterMixin,\
+from experiment_framework.privacy_estimator_mixins import KNNFitterMixin,\
     ExpectationFitterMixin
-from luigi_utils.sampling_framework import GenSample, GenSamples, FitModel, \
+from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
+from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
+from experiment_framework.helpers import AllAsymptotics
 
 
 def svd_dataset_settings(part_fraction=0.3,
@@ -24,6 +28,40 @@ def svd_dataset_settings(part_fraction=0.3,
         'SVD_type'     : SVD_type,
         'SVD_k'        : SVD_k
         }
+
+def svd_asymptotic_settings(n_docs=5,
+                            n_max=2**12):
+    setv = {
+        'gen_sample_kwargs'             : {
+            'generate_in_batch': True,
+            'x_concatenator'   : 'numpy.vstack'
+            },
+        'fitter'                        : 'knn',
+        'fitter_kwargs'                 : {
+            'neighbor_method': 'gyorfi'
+            },
+        'n_docs'                        : n_docs,
+        'n_trials_per_training_set_size': 10,
+        'n_max'                         : n_max,
+        'validation_set_size'           : 2**10
+    }
+    return setv
+
+def svd_reqs():
+    DATASETS = ['ml-1m']  # ['20NG', 'ml-1m']
+    PART_FRACTIONS = [0.01]  # [0.01, 0.1]
+
+    reqs = []
+    aas = svd_asymptotic_settings()
+    for ds, pf in product(DATASETS, PART_FRACTIONS):
+        dss = svd_dataset_settings(dataset_name=ds, part_fraction=pf)
+        reqs += AllAsymptotics(
+            gen_sample_path='empirical_privacy.row_distributed_svd'
+                            '.GenSVDSample',
+            dataset_settings = dss,
+            asymptotic_settings = aas
+        ).requires()
+    return reqs
 
 
 class GenSVDSample(GenSample):
@@ -77,7 +115,7 @@ class GenSVDSample(GenSample):
             n,
             self.dataset_settings['part_fraction'],
             self.dataset_settings['doc_ind'],
-            self.random_seed + 'sample{}'.format(sample_number)
+            '{}sample{}'.format(self.random_seed, sample_number)
             )
         I_atk = Inds['I_attacker']
         if self.generate_positive_sample:
@@ -177,7 +215,7 @@ class GenFVSamplesSVD(
     pass
 
 class FitKNNModelSVD(
-    KNNFitterMixin(neighbor_method='sqrt'),
+    KNNFitterMixin(neighbor_method='gyorfi'),
     FitModel(GenSamplesSVD)
     ):
     pass
@@ -189,7 +227,7 @@ class FitExpModelSVD(
     pass
 
 class FitKNNFVModelSVD(
-    KNNFitterMixin(neighbor_method='sqrt'),
+    KNNFitterMixin(neighbor_method='gyorfi'),
     FitModel(GenFVSamplesSVD)
     ):
     pass
@@ -220,57 +258,57 @@ class ExpCCCSVD(ComputeConvergenceCurve(EvaluateExpSVDSD)):
 class CCCFVSVD(ComputeConvergenceCurve(EvaluateKNNFVSVDSD)):
     pass
 
-def gen_SVD_CCCs_for_multiple_docs(n_docs=10,
-                                   n_trials_per_training_set_size=3,
-                                   validation_set_size=64,
-                                   n_max=256,
-                                   dataset_settings=None,
-                                   CCCType = CCCSVD
-                                   ):
+class AsymptoticAnalysisSVD(ComputeAsymptoticAccuracy(CCCSVD)):
+    pass
+
+def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
+                                          p=0.99,
+                                          n_docs=10,
+                                          n_trials_per_training_set_size=3,
+                                          validation_set_size=64,
+                                          n_max=256,
+                                          dataset_settings=None,
+                                          AAType = AsymptoticAnalysisSVD
+                                          ):
     if dataset_settings is None:
         dataset_settings = svd_dataset_settings()
 
-    CCCs = []
+    AAs = []
     for doc_i in range(n_docs):
         ds = deepcopy(dataset_settings)
         ds['doc_ind'] = doc_i
-        CCCs.append(CCCType(
+        AAs.append(AAType(
+            confidence_interval_width=t,
+            confidence_interval_prob=p,
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,
             dataset_settings=ds,
             validation_set_size=validation_set_size
             )
             )
-    return CCCs
+    return AAs
 
 class All(luigi.WrapperTask):
     CCCType = luigi.Parameter()
-
-
     def requires(self):
-        CCCTypes = []
-        if 'CCCFVSVD' in self.CCCType:
-            CCCTypes.append(CCCFVSVD)
-        if 'ExpCCCSVD' in self.CCCType:
-            CCCTypes.append(ExpCCCSVD)
-        if 'CCCSVD' in self.CCCType:
-            CCCTypes.append(CCCSVD)
-
-        CCCs = []
-
+        logging.warning('All is deprecated, use AllSVDAsymptotics')
+        AAs = []
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
-            for CCCType in CCCTypes:
-                for dataset in ['20NG', 'ml-1m']:
-                    for trials in range(5, 31):
-                        for part_fraction in [0.01, 0.1]:
-                            ds = svd_dataset_settings(dataset_name=dataset,
-                                                      part_fraction=part_fraction)
-                            _CCCs = gen_SVD_CCCs_for_multiple_docs(n_max=n_max,
-                                                                   validation_set_size=2**10,
-                                                                   n_docs=10,
-                                                                   n_trials_per_training_set_size=trials,
-                                                                   dataset_settings=ds,
-                                                                   CCCType=CCCType
-                                                                   )
-                            CCCs += _CCCs
-        return CCCs
+            for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
+                for trials in range(5, 10+1):
+                    for part_fraction in [0.01]:
+                        ds = svd_dataset_settings(dataset_name=dataset,
+                                                  part_fraction=part_fraction)
+                        _AAs = gen_SVD_asymptotics_for_multiple_docs(n_max=n_max,
+                                                                      validation_set_size=2**10,
+                                                                      n_docs=5,
+                                                                      n_trials_per_training_set_size=trials,
+                                                                      dataset_settings=ds
+                                                                      )
+                        AAs += _AAs
+        return AAs
+
+
+class AllSVDAsymptotics(luigi.WrapperTask):
+    def requires(self):
+        return svd_reqs()

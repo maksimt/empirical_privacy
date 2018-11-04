@@ -3,23 +3,10 @@ import pytest
 import dill
 import luigi
 
-from empirical_privacy.row_distributed_common import \
-    gen_attacker_and_defender_indices
-from empirical_privacy.row_distributed_svd import CCCSVD, GenSVDSample, CCCFVSVD
-
-def test_gen_indices():
-    doc_ind = 7
-    n_adv_with = 0
-    for i in range(1000):
-        IDX = gen_attacker_and_defender_indices(10, 0.4, doc_ind=doc_ind,
-                                                seed=str(i))
-        I1 = IDX['I_defender_with']
-        I0 = IDX['I_defender_without']
-        if doc_ind in IDX['I_attacker']:
-            n_adv_with += 1
-        assert doc_ind in I1 and doc_ind not in I0
-    assert 300 <= n_adv_with <= 500
-
+from empirical_privacy.row_distributed_svd import \
+    CCCSVD, GenSVDSample, CCCFVSVD, AsymptoticAnalysisSVD, AllSVDAsymptotics, \
+    svd_asymptotic_settings
+from experiment_framework.python_helpers import load_from
 
 @pytest.fixture(scope='function')
 def ccc_kwargs(request):
@@ -75,3 +62,46 @@ def test_full_view_samples(ccc_kwargs):
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
     assert res['sd_matrix'].shape == (3, 2)
+
+def test_asymptotic_accuracy():
+    ds = {
+        'dataset_name' : 'PCR_Test',
+        'part_fraction': 0.3,
+        'doc_ind'      : 33,
+        'SVD_type'     : 'hidden_eigs',
+        'SVD_k'        : 5
+    }
+    ccc_kwargs = {
+        'n_trials_per_training_set_size': 20,
+        'n_max'                         : 256,
+        'dataset_settings'              : ds,
+        'validation_set_size'           : 128
+    }
+    t = 0.01
+    AA = AsymptoticAnalysisSVD(
+        **ccc_kwargs,
+        confidence_interval_width=t,
+        confidence_interval_prob=0.99
+    )
+    luigi.build([AA], local_scheduler=True, workers=8, log_level='WARNING')
+    with AA.output().open() as f:
+        res = dill.load(f)
+    assert res['upper_bound'] <= 0.55
+
+
+def test_all_reqs():
+    A = AllSVDAsymptotics()
+    setv = svd_asymptotic_settings()
+    reqs = A.requires()
+    assert len(reqs)==setv['n_docs']
+    req = reqs[0]
+    CCC = req.requires()['CCC']
+    for it in CCC.requires():
+        CP = CCC.requires()[it]
+        break
+    Model = CP.requires()['model']
+    assert Model.neighbor_method == setv['fitter_kwargs']['neighbor_method']
+    GS = CP.requires()['samples_positive']
+    assert GS.x_concatenator == load_from(
+        setv['gen_sample_kwargs']['x_concatenator']
+    )
