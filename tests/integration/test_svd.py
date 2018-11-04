@@ -4,7 +4,9 @@ import dill
 import luigi
 
 from empirical_privacy.row_distributed_svd import \
-    CCCSVD, GenSVDSample, CCCFVSVD, AsymptoticAnalysisSVD
+    CCCSVD, GenSVDSample, CCCFVSVD, AsymptoticAnalysisSVD, AllSVDAsymptotics, \
+    svd_asymptotic_settings
+from experiment_framework.python_helpers import load_from
 
 @pytest.fixture(scope='function')
 def ccc_kwargs(request):
@@ -85,3 +87,21 @@ def test_asymptotic_accuracy():
     with AA.output().open() as f:
         res = dill.load(f)
     assert res['upper_bound'] <= 0.55
+
+
+def test_all_reqs():
+    A = AllSVDAsymptotics()
+    setv = svd_asymptotic_settings()
+    reqs = A.requires()
+    assert len(reqs)==setv['n_docs']
+    req = reqs[0]
+    CCC = req.requires()['CCC']
+    for it in CCC.requires():
+        CP = CCC.requires()[it]
+        break
+    Model = CP.requires()['model']
+    assert Model.neighbor_method == setv['fitter_kwargs']['neighbor_method']
+    GS = CP.requires()['samples_positive']
+    assert GS.x_concatenator == load_from(
+        setv['gen_sample_kwargs']['x_concatenator']
+    )

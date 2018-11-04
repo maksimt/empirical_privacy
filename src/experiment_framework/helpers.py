@@ -1,15 +1,14 @@
 from typing import Sequence
 import dill
-import collections
 import copy
 import logging
-import importlib
 
 import luigi
 import pandas as pd
 
 from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin, \
     ExpectationFitterMixin, KNNFitterMixin
+from experiment_framework.python_helpers import load_from, _flatten_dict
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve, \
     _ComputeConvergenceCurve
@@ -19,13 +18,16 @@ from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 class AllAsymptotics(luigi.WrapperTask):
     gen_sample_path = luigi.Parameter()
     dataset_settings = luigi.DictParameter()
+    asymptotic_settings = luigi.DictParameter(default={})
 
     def requires(self):
-        p, m = self.gen_sample_path.rsplit('.', 1)
-        mod = importlib.import_module(p)
-        GS = getattr(mod, m)
+        GS = load_from(self.gen_sample_path)
         # dict() so we can modify it without getting FrozenDict violations
-        AAs = asymptotics_for_multiple_docs(dict(self.dataset_settings), GS)
+        AAs = asymptotics_for_multiple_docs(
+            dict(self.dataset_settings),
+            GS,
+            **self.asymptotic_settings
+        )
         return AAs
 
 
@@ -109,17 +111,6 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     CCC.__name__ = gs_name + 'ComputeConvergenceCurve' + fitter
 
     return CCC
-
-
-def _flatten_dict(d, parent_key='', sep='_'):
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.Mapping):
-            items.extend(_flatten_dict(v, None, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
 
 
 def load_completed_CCCs_into_dataframe(

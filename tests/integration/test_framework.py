@@ -1,6 +1,6 @@
 import copy
 import time
-import importlib
+import typing
 
 import dill
 import luigi
@@ -13,6 +13,8 @@ from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
 from experiment_framework.helpers import build_convergence_curve_pipeline, \
     load_completed_CCCs_into_dataframe, AllAsymptotics
+from experiment_framework.python_helpers import load_from
+from experiment_framework.sampling_framework import GenSamples
 
 
 def B_pmf(k, n, p):
@@ -188,7 +190,9 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
 def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
-        dataset_settings=ds_rs['dataset_settings'])
+        dataset_settings=ds_rs['dataset_settings'],
+        asymptotics_kwargs={'n_docs': 1, 'n_max':128}
+    )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]
     with AA.output().open() as f:
@@ -196,13 +200,9 @@ def test_asymptotic_generator(ds_rs):
     assert 'mean' in res and 'upper_bound' in res
 
 
-@pytest.mark.skip(reason='will only fail if importlib changes or GenSamples '
-                         'API changes')
 def test_importlib(ds_rs):
     _path = 'empirical_privacy.one_bit_sum.GenSampleOneBitSum'
-    p, m = _path.rsplit('.', 1)
-    mod = importlib.import_module(p)
-    GS = getattr(mod, m)
+    GS = load_from(_path)
     try:
         ds_rs.pop('sd')
     except KeyError:
@@ -216,3 +216,12 @@ def test_importlib(ds_rs):
     with GSTask.output().open() as f:
         samples = dill.load(f)
     assert samples.y[0] == 1
+
+def test_attr_string_handling(ds_rs):
+    try:
+        ds_rs.pop('sd')
+    except KeyError:
+        pass
+    GSs = GenSamples(one_bit_sum.GenSampleOneBitSum,
+                     x_concatenator='numpy.concatenate')
+    assert hasattr(GSs.x_concatenator, '__call__')

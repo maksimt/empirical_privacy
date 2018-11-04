@@ -1,5 +1,7 @@
 from copy import deepcopy
 from functools import partial
+import logging
+from itertools import product
 
 import numpy as np
 from scipy.sparse import csr_matrix, linalg, vstack as sparse_vstack, issparse
@@ -13,6 +15,7 @@ from experiment_framework.privacy_estimator_mixins import KNNFitterMixin,\
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
 from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
+from experiment_framework.helpers import AllAsymptotics
 
 
 def svd_dataset_settings(part_fraction=0.3,
@@ -25,6 +28,40 @@ def svd_dataset_settings(part_fraction=0.3,
         'SVD_type'     : SVD_type,
         'SVD_k'        : SVD_k
         }
+
+def svd_asymptotic_settings(n_docs=5,
+                            n_max=2**12):
+    setv = {
+        'gen_sample_kwargs'             : {
+            'generate_in_batch': True,
+            'x_concatenator'   : 'numpy.vstack'
+            },
+        'fitter'                        : 'knn',
+        'fitter_kwargs'                 : {
+            'neighbor_method': 'gyorfi'
+            },
+        'n_docs'                        : n_docs,
+        'n_trials_per_training_set_size': 10,
+        'n_max'                         : n_max,
+        'validation_set_size'           : 2**10
+    }
+    return setv
+
+def svd_reqs():
+    DATASETS = ['ml-1m']  # ['20NG', 'ml-1m']
+    PART_FRACTIONS = [0.01]  # [0.01, 0.1]
+
+    reqs = []
+    aas = svd_asymptotic_settings()
+    for ds, pf in product(DATASETS, PART_FRACTIONS):
+        dss = svd_dataset_settings(dataset_name=ds, part_fraction=pf)
+        reqs += AllAsymptotics(
+            gen_sample_path='empirical_privacy.row_distributed_svd'
+                            '.GenSVDSample',
+            dataset_settings = dss,
+            asymptotic_settings = aas
+        ).requires()
+    return reqs
 
 
 class GenSVDSample(GenSample):
@@ -254,6 +291,7 @@ def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
 class All(luigi.WrapperTask):
     CCCType = luigi.Parameter()
     def requires(self):
+        logging.warning('All is deprecated, use AllSVDAsymptotics')
         AAs = []
         for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
             for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
@@ -269,3 +307,8 @@ class All(luigi.WrapperTask):
                                                                       )
                         AAs += _AAs
         return AAs
+
+
+class AllSVDAsymptotics(luigi.WrapperTask):
+    def requires(self):
+        return svd_reqs()
