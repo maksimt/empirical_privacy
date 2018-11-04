@@ -2,13 +2,71 @@ from typing import Sequence
 import dill
 import collections
 import copy
+import logging
+import importlib
 
+import luigi
 import pandas as pd
 
 from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin, \
     ExpectationFitterMixin, KNNFitterMixin
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
-    EvaluateStatisticalDistance, ComputeConvergenceCurve, _ComputeConvergenceCurve
+    EvaluateStatisticalDistance, ComputeConvergenceCurve, \
+    _ComputeConvergenceCurve
+from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
+
+
+class AllAsymptotics(luigi.WrapperTask):
+    gen_sample_path = luigi.Parameter()
+    dataset_settings = luigi.DictParameter()
+
+    def requires(self):
+        p, m = self.gen_sample_path.rsplit('.', 1)
+        mod = importlib.import_module(p)
+        GS = getattr(mod, m)
+        AAs = asymptotics_for_multiple_docs(self.dataset_settings,
+                                            GS)
+        return AAs
+
+
+def asymptotics_for_multiple_docs(
+        dataset_settings : dict,
+        GS : GenSample,
+        gen_sample_kwargs = {'generate_in_batch': True},
+        fitter_kwargs = {},
+        fitter = 'knn',
+        t=0.01,
+        p=0.99,
+        n_docs=10,
+        n_trials_per_training_set_size=3,
+        validation_set_size=64,
+        n_max=256,
+    ):
+    if 'doc_ind' in dataset_settings:
+        logging.warning('doc_ind is overwritten; if you need granular control'
+                        'consider building the AsymptoticAnalysis classes by '
+                        'hand.')
+
+    CCCType = build_convergence_curve_pipeline(GS, gen_sample_kwargs,
+                                               fitter_kwargs, fitter)
+
+    class AAType(ComputeAsymptoticAccuracy(CCCType)):
+        pass
+
+    AAs = []
+    for doc_i in range(n_docs):
+        ds = copy.deepcopy(dataset_settings)
+        ds['doc_ind'] = doc_i
+        AAs.append(AAType(
+            confidence_interval_width=t,
+            confidence_interval_prob=p,
+            n_trials_per_training_set_size=n_trials_per_training_set_size,
+            n_max=n_max,
+            dataset_settings=ds,
+            validation_set_size=validation_set_size
+            )
+        )
+    return AAs
 
 
 def build_convergence_curve_pipeline(GenSampleType: GenSample,

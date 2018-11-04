@@ -1,5 +1,6 @@
 import copy
 import time
+import importlib
 
 import dill
 import luigi
@@ -182,3 +183,22 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
     DF = load_completed_CCCs_into_dataframe(CCCs)
     n_rows_exp = np.prod(expected_sd_matrix_shape) * 5
     assert DF.shape == (n_rows_exp, 9)
+
+def test_importlib(ds_rs):
+    _path = 'empirical_privacy.one_bit_sum.GenSampleOneBitSum'
+    p, m = _path.rsplit('.', 1)
+    mod = importlib.import_module(p)
+    GS = getattr(mod, m)
+    try:
+        ds_rs.pop('sd')
+    except KeyError:
+        pass
+    GSTask = GS(
+        generate_positive_sample=True,
+        sample_number=0,
+        **ds_rs
+    )
+    luigi.build([GSTask], local_scheduler=True, workers=1, log_level='ERROR')
+    with GSTask.output().open() as f:
+        samples = dill.load(f)
+    assert samples.y[0] == 1
