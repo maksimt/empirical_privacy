@@ -1,6 +1,7 @@
 import itertools
 from abc import abstractmethod, ABC
 from collections import namedtuple
+import six
 
 import dill
 import luigi
@@ -8,8 +9,9 @@ import numpy as np
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
     MIN_SAMPLES, SAMPLES_BASE
-from luigi_utils.target_mixins import AutoLocalOutputMixin, \
+from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
+from experiment_framework.python_helpers import load_from
 
 
 def ComputeConvergenceCurve(
@@ -219,39 +221,6 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
             dill.dump(model, f, 2)
 
 
-def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
-               y_concatenator=np.concatenate, generate_in_batch=False):
-    """
-    Parameters
-    ----------
-    gen_sample_type : class
-        The class that will be generating samples
-    x_concatenator : function
-        Takes tuples of the form (x1, x2) where xi are either elements or
-        outputs of x_concatenator and concatenates them. E.g.
-        np.conconcatenate, np.vstack or np.hstack
-    y_concatenator : function
-        Takes tuples of the form (y1, y2) where yi are either elements or
-        outputs of x_concatenator and concatenates them.
-    generate_in_batch : bool, optional (default False)
-        Generate the entire batch of samples directly without spawning subtasks
-        Can improve performance if the IO cost of saving/loading a sample is
-        higher than computing it.
-    Returns
-    -------
-    T : class
-    """
-
-    class T(_GenSamples):
-        pass
-
-    T.gen_sample_type = gen_sample_type
-    T.x_concatenator = staticmethod(x_concatenator)
-    T.y_concatenator = staticmethod(y_concatenator)
-    T.generate_in_batch = generate_in_batch
-    return T
-
-
 class _GenSamples(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
@@ -359,3 +328,39 @@ class GenSample(
         x, y = self.gen_sample(sample_number=self.sample_number)
         with self.output().open('wb') as f:
             dill.dump(Sample(x, y), f, 2)
+
+
+def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
+               y_concatenator=np.concatenate, generate_in_batch=False) -> _GenSamples:
+    """
+    Parameters
+    ----------
+    gen_sample_type : class
+        The class that will be generating samples
+    x_concatenator : function
+        Takes tuples of the form (x1, x2) where xi are either elements or
+        outputs of x_concatenator and concatenates them. E.g.
+        np.conconcatenate, np.vstack or np.hstack
+    y_concatenator : function
+        Takes tuples of the form (y1, y2) where yi are either elements or
+        outputs of x_concatenator and concatenates them.
+    generate_in_batch : bool, optional (default False)
+        Generate the entire batch of samples directly without spawning subtasks
+        Can improve performance if the IO cost of saving/loading a sample is
+        higher than computing it.
+    Returns
+    -------
+    T : class
+    """
+
+    class T(_GenSamples):
+        pass
+
+    T.gen_sample_type = gen_sample_type
+    for attr_name, attr in [('x_concatenator', x_concatenator),
+                            ('y_concatenator', y_concatenator)]:
+        if isinstance(attr, six.string_types):
+            attr = load_from(attr)
+        setattr(T, attr_name, staticmethod(attr))
+    T.generate_in_batch = generate_in_batch
+    return T

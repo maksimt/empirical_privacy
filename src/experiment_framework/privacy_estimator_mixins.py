@@ -92,6 +92,7 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
 
             X0, X1 = _ensure_2dim(X0, X1)
 
+
             X = np.vstack((X0, X1))
             y = np.concatenate((y0, y1))
             num_samples = X.shape[0]
@@ -100,6 +101,13 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
             if hasattr(neighbor_method, 'lower'):  # string
                 if neighbor_method == 'sqrt':
                     k = int(ceil(sqrt(num_samples)))
+                    if k % 2 == 0:  # ensure k is odd
+                        k += 1
+                    KNN.n_neighbors = k
+                if neighbor_method == 'gyorfi':
+                    d = X0.shape[1]
+                    self.d = d
+                    k = int(num_samples**(2/(d+2)))
                     if k % 2 == 0:  # ensure k is odd
                         k += 1
                     KNN.n_neighbors = k
