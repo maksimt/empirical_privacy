@@ -12,7 +12,8 @@ from experiment_framework.python_helpers import load_from, _flatten_dict
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve, \
     _ComputeConvergenceCurve
-from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
+from experiment_framework.asymptotic_analysis import \
+    ComputeAsymptoticAccuracy, _ComputeAsymptoticAccuracy
 
 
 class AllAsymptotics(luigi.WrapperTask):
@@ -132,5 +133,20 @@ def load_completed_CCCs_into_dataframe(
                     rtv_dict['training_set_size'] = tss[samp_i]
                     rtv_dict['classifier_accuracy'] = S[tri, samp_i]
                     res.append(rtv_dict)
+    DF = pd.DataFrame.from_dict(res)
+    return DF
+
+def load_completed_AAs_into_dataframe(
+        AAs: Sequence[_ComputeAsymptoticAccuracy]
+    ):
+    res = []
+    for AA in AAs:
+        if not AA.complete():
+            continue
+        with AA.output().open() as f:
+            dat = dill.load(f)
+        as_dict = _flatten_dict(AA.param_kwargs)
+        dat.update(as_dict)
+        res.append(dat)
     DF = pd.DataFrame.from_dict(res)
     return DF
