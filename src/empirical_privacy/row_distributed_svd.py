@@ -293,10 +293,10 @@ class All(luigi.WrapperTask):
     def requires(self):
         logging.warning('All is deprecated, use AllSVDAsymptotics')
         AAs = []
-        for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2**13]:
-            for dataset in ['ml-1m']:#['20NG', 'ml-1m']:
+        for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2 ** 13]:
+            for dataset in ['ml-1m', '20NG']:#['20NG', 'ml-1m']:
                 for trials in range(5, 10+1):
-                    for part_fraction in [0.01]:
+                    for part_fraction in [0.01, 0.1]:
                         ds = svd_dataset_settings(dataset_name=dataset,
                                                   part_fraction=part_fraction)
                         _AAs = gen_SVD_asymptotics_for_multiple_docs(n_max=n_max,
