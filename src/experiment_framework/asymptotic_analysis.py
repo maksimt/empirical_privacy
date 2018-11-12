@@ -54,9 +54,9 @@ class _ComputeAsymptoticAccuracy(
     def run(self):
         _inputs = self.load_input_dict()
         res = _inputs['CCC']
-        y = res['sd_matrix'].reshape(res['sd_matrix'].size)
-        x = np.concatenate(list(repeat(res['training_set_sizes'],
-                                       res['sd_matrix'].shape[0])))
+        y = res['sd_matrix']
+        x = np.tile(res['training_set_sizes'],
+                    (res['sd_matrix'].shape[0], 1))
         x = x.astype(np.double)
 
         samp = _inputs['Sample'].x
@@ -158,6 +158,8 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
     res = np.empty((n_samples,))
     for tri in range(n_samples):
         Xi, yi = resample(X, y, random_state=tri)
+        Xi = Xi.reshape(Xi.size)
+        yi = yi.reshape(yi.size)
         res[tri] = f(Xi, yi)
     return res
 
