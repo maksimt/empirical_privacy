@@ -17,15 +17,6 @@ from experiment_framework.python_helpers import load_from
 from experiment_framework.sampling_framework import GenSamples
 
 
-def B_pmf(k, n, p):
-    return binom(n, p).pmf(k)
-def B0_pmf(k, n, p):
-    return B_pmf(k, n-1, p)
-def B1_pmf(k, n, p):
-    return B_pmf(k-1, n-1, p)
-def sd(N, P):
-    return 0.5*np.sum(abs(B0_pmf(i, N, P) - B1_pmf(i, N, P)) for i in range(N+1))
-
 @pytest.fixture(scope='session')
 def ds_rs():
     n = 40
@@ -37,7 +28,7 @@ def ds_rs():
             'gen_distr_type': 'binom',
         },
         'random_seed'     : '1338',
-        'sd': sd(n, p)
+        'sd': one_bit_sum.sd(n, p)
     }
 
 def test_gen_samples_one_bit(ds_rs):
@@ -191,7 +182,7 @@ def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotics_kwargs={'n_docs': 1, 'n_max':128}
+        asymptotic_settings={'n_docs': 1, 'n_max':128}
     )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]

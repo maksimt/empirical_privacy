@@ -223,5 +223,5 @@ try:
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
-    except ImportError:
-        pass
+except ImportError:
+    pass

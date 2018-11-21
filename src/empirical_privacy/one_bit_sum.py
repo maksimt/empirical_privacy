@@ -9,10 +9,28 @@ from experiment_framework.sampling_framework import GenSamples, GenSample, FitMo
 from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 
 
+def B_pmf(k, n, p):
+    return binom(n, p).pmf(k)
+def B0_pmf(k, n, p):
+    return B_pmf(k, n-1, p)
+def B1_pmf(k, n, p):
+    return B_pmf(k-1, n-1, p)
+def sd(N, P):
+    return 0.5*np.sum(abs(B0_pmf(i, N, P) - B1_pmf(i, N, P)) for i in range(N+1))
+
 class GenSampleOneBitSum(GenSample):
 
     def gen_sample(self, sample_number):
-        GenSample.set_simple_random_seed(sample_number, self.random_seed)
+        seed_val = self.random_seed
+        try:
+            seed_val = 'seed{sv}doc{di}'.format(
+                    di=self.dataset_settings['doc_ind'],
+                    sv=seed_val
+                )
+        except KeyError:
+            pass
+
+        GenSample.set_simple_random_seed(sample_number, seed_val)
 
         n = self.dataset_settings['n_trials']
         p = self.dataset_settings['prob_success']
