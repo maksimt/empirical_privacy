@@ -64,6 +64,9 @@ class _ComputeAsymptoticAccuracy(
         else:
             d = samp.shape[1]
 
+        assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
+                     'd>=3, but d={}'.format(d)
+
         n_bootstraps = hoeffding_n_given_t_and_p(
             t=self.confidence_interval_width,
             p=self.confidence_interval_prob

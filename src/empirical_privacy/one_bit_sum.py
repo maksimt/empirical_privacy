@@ -20,7 +20,7 @@ def sd(N, P):
 
 class GenSampleOneBitSum(GenSample):
 
-    def gen_sample(self, sample_number):
+    def gen_sample(self, sample_number, dimension=3):
         seed_val = self.random_seed
         try:
             seed_val = 'seed{sv}doc{di}'.format(
@@ -36,14 +36,23 @@ class GenSampleOneBitSum(GenSample):
         p = self.dataset_settings['prob_success']
 
         num_samples = 1
+        size = (num_samples, dimension)
         if self.dataset_settings['gen_distr_type'] == 'binom':
-            B0 = binom.rvs(n - 1, p, size=num_samples) + 0
-            B1 = binom.rvs(n - 1, p, size=num_samples) + 1
+            B0 = binom.rvs(n - 1, p, size=size) + 0
+            B1 = binom.rvs(n - 1, p, size=size) + 1
         elif self.dataset_settings['gen_distr_type'] == 'norm':
             sigma = sqrt((n - 0.75) / 12.0)
             mu = (n - 1.0) / 2
-            B0 = norm.rvs(loc=mu + 0.25, scale=sigma, size=num_samples)
-            B1 = norm.rvs(loc=mu + 0.75, scale=sigma, size=num_samples)
+            B0 = norm.rvs(loc=mu + 0.25, scale=sigma, size=size)
+            B1 = norm.rvs(loc=mu + 0.75, scale=sigma, size=size)
+        elif self.dataset_settings['gen_distr_type'] == 'multidim_binom':
+            if p < 0.5:
+                p = 1 - p
+            B0 = binom.rvs(1, 1-p, size=size)
+            B1 = binom.rvs(1, p, size=size)
+        else:
+            raise ValueError('Unrecognized gen_distr_type={}'.format(
+                    self.dataset_settings['gen_distr_type']))
 
         X0 = B0  # = np.concatenate((B0, B1))[:, np.newaxis]
         X1 = B1
@@ -56,7 +65,10 @@ class GenSampleOneBitSum(GenSample):
             return X0, y0
 
 
-class GenSamplesOneBit(GenSamples(GenSampleOneBitSum, generate_in_batch=True)):
+class GenSamplesOneBit(GenSamples(GenSampleOneBitSum,
+                                  x_concatenator=np.vstack,
+                                  generate_in_batch=True),
+                       ):
     pass
 
 
