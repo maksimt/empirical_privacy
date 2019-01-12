@@ -14,3 +14,6 @@ However even as of 2018.1.4 there are some quirks related to the setup.
     1. For both for `Python` and `Python Tests/py.test`:
         1. Ensure the mapping `-v /$ABS_PATH_TO/empirical_privacy:/emp_priv` is in Docker Container settings.
     2. For `Python` disable "Run in Python Console" source: https://youtrack.jetbrains.com/issue/PY-28608 .
+    3. Ensure "Add source roots to PYTHONPATH" is checked.
+4. Mark `src`, `tests/unit` and `tests/integration` as "Sources Root".
+    * Right click on the directory icon -> Mark Directory as -> Sources Root.

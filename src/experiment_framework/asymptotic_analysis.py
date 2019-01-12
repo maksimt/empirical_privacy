@@ -6,7 +6,6 @@ from functools import partial
 
 import dill
 import numpy as np
-import torch
 from sklearn.utils import resample
 import luigi
 
@@ -64,6 +63,9 @@ class _ComputeAsymptoticAccuracy(
             d = 1
         else:
             d = samp.shape[1]
+
+        assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
+                     'd>=3, but d={}'.format(d)
 
         n_bootstraps = hoeffding_n_given_t_and_p(
             t=self.confidence_interval_width,
@@ -129,11 +131,6 @@ def asymptotic_privacy_lr(X, y, d=6):
     b = np.linalg.lstsq(A, y)
     return b[0][0]
 
-def asymptotic_privacy(X: np.ndarray, y:np.ndarray, d: int) -> np.double:
-    mod = KNNConvergenceCurve(torch.from_numpy(X), torch.from_numpy(y), d)
-    mod.fit_with_optimizer(n_iter=1500)
-    return mod.m.item()
-
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
                  f: typing.Callable[[np.ndarray, np.ndarray, int], np.double]) \
@@ -163,62 +160,71 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
         res[tri] = f(Xi, yi)
     return res
 
+try:
+    import torch
 
-class KNNConvergenceCurve(torch.nn.Module):
-    def __init__(self,  x: torch.Tensor,
-                        y: torch.Tensor,
-                        d: int,
-                        print_to_console=False):
-        super(KNNConvergenceCurve, self).__init__()
-        self.m = torch.ones(1, requires_grad=True, dtype=torch.double)
-        self.c = torch.ones(1, requires_grad=True, dtype=torch.double)
-        self.x = x
-        self.y = y
-        self.x.requires_grad = False
-        self.y.requires_grad = False
-        self.d = d
-        self.print_to_console = print_to_console
+    def asymptotic_privacy(X: np.ndarray, y: np.ndarray, d: int) -> np.double:
+        mod = KNNConvergenceCurve(torch.from_numpy(X), torch.from_numpy(y), d)
+        mod.fit_with_optimizer(n_iter=1500)
+        return mod.m.item()
 
-    def predict(self, x: int) -> np.double:
-        """
-        Return asymptotic estimate of error given x training samples
+    class KNNConvergenceCurve(torch.nn.Module):
+        def __init__(self,  x: torch.Tensor,
+                            y: torch.Tensor,
+                            d: int,
+                            print_to_console=False):
+            super(KNNConvergenceCurve, self).__init__()
+            self.m = torch.ones(1, requires_grad=True, dtype=torch.double)
+            self.c = torch.ones(1, requires_grad=True, dtype=torch.double)
+            self.x = x
+            self.y = y
+            self.x.requires_grad = False
+            self.y.requires_grad = False
+            self.d = d
+            self.print_to_console = print_to_console
 
-        Parameters
-        ----------
-        x : int
-            The number of data samples
+        def predict(self, x: int) -> np.double:
+            """
+            Return asymptotic estimate of error given x training samples
 
-        Returns
-        -------
-        y : double
+            Parameters
+            ----------
+            x : int
+                The number of data samples
 
-        """
-        return self.m + self.c * 1 / (x ** (2 / (self.d + 2)))
+            Returns
+            -------
+            y : double
 
-    def loss(self, x: int) -> np.double:
-        return (self.y - self.predict(x)).pow(2).sum()
+            """
+            return self.m + self.c * 1 / (x ** (2 / (self.d + 2)))
 
-    def fit(self, learning_rate=0.01, n_iter=500):
-        for t in range(n_iter):
-            loss = self.loss(self.x)
-            loss.backward()
-            with torch.no_grad():
-                self.m -= learning_rate * self.m.grad
-                self.c -= learning_rate * self.c.grad
-                self.m.grad.zero_()
-                self.c.grad.zero_()
+        def loss(self, x: int) -> np.double:
+            return (self.y - self.predict(x)).pow(2).sum()
 
-    def fit_with_optimizer(self,
-                           learning_rate=0.01,
-                           n_iter=500,
-                           opt=torch.optim.Adam,
-                           loss_fn=torch.nn.MSELoss(reduction='sum')):
-        opt = opt([self.m, self.c], lr=learning_rate)
-        for t in range(n_iter):
-            y_pred = self.predict(self.x)
-            loss = loss_fn(y_pred, self.y)
-            if self.print_to_console and t % 25 == 0:
-                print(t, loss.item())
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
+        def fit(self, learning_rate=0.01, n_iter=500):
+            for t in range(n_iter):
+                loss = self.loss(self.x)
+                loss.backward()
+                with torch.no_grad():
+                    self.m -= learning_rate * self.m.grad
+                    self.c -= learning_rate * self.c.grad
+                    self.m.grad.zero_()
+                    self.c.grad.zero_()
+
+        def fit_with_optimizer(self,
+                               learning_rate=0.01,
+                               n_iter=500,
+                               opt=torch.optim.Adam,
+                               loss_fn=torch.nn.MSELoss(reduction='sum')):
+            opt = opt([self.m, self.c], lr=learning_rate)
+            for t in range(n_iter):
+                y_pred = self.predict(self.x)
+                loss = loss_fn(y_pred, self.y)
+                if self.print_to_console and t % 25 == 0:
+                    print(t, loss.item())
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+except ImportError:
+    pass
