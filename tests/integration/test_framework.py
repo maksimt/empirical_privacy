@@ -1,13 +1,11 @@
 import copy
 import time
-import typing
 
 import dill
 import luigi
 import numpy as np
 import pytest
 from scipy.stats import binom
-
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
@@ -191,7 +189,7 @@ def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotics_kwargs={'n_docs': 1, 'n_max':128}
+        asymptotic_settings={'n_docs': 1, 'n_max':128}
     )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]

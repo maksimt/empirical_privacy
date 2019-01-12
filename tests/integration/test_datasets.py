@@ -27,6 +27,7 @@ def test_load_rs_dataset(name):
 
 
 def test_get_ml1m_user():
+    # 1st 4 rows of the ML-1M .csv:
     # 1::1193::5::978300760
     # 1::661::3::978302109
     # 1::914::3::978301968
