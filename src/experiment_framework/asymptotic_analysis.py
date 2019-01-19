@@ -156,7 +156,7 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
 
     Examples
     --------
-    bootstrap_asymp = bootstrap_ci(100, x, y, asymptotic_privacy)
+    bootstrap_asymp = bootstrap_ci(100, x, y, asymptotic_curve_torch)
 
     Parameters
     ----------
@@ -180,10 +180,10 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
 try:
     import torch
 
-    def asymptotic_privacy(X: np.ndarray, y: np.ndarray, d: int) -> np.double:
+    def asymptotic_curve_torch(X: np.ndarray, y: np.ndarray, d: int) -> np.double:
         mod = KNNConvergenceCurve(torch.from_numpy(X), torch.from_numpy(y), d)
         mod.fit_with_optimizer(n_iter=1500)
-        return mod.m.item()
+        return (mod.m.item(), mod.c.item())
 
     class KNNConvergenceCurve(torch.nn.Module):
         def __init__(self,  x: torch.Tensor,
@@ -217,7 +217,7 @@ try:
             return self.m + self.c * 1 / (x ** (2 / (self.d + 2)))
 
         def loss(self, x: int) -> np.double:
-            return (self.y - self.predict(x)).pow(2).sum()
+            return (self.y - self.predict(x)).abs().sum()
 
         def fit(self, learning_rate=0.01, n_iter=500):
             for t in range(n_iter):
