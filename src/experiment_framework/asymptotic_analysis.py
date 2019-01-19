@@ -4,9 +4,10 @@ from abc import ABC
 from functools import partial
 
 import dill
+import luigi
 import numpy as np
 from sklearn.utils import resample
-import luigi
+from scipy.optimize import least_squares
 
 from experiment_framework.sampling_framework import ComputeConvergenceCurve
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
@@ -145,8 +146,30 @@ def asymptotic_curve_lr(X, y, d=6):
     return b
 
 def asymptotic_privacy_lr(X, y, d=6):
-    b = asymptotic_curve_lr(X, y, d)
-    return b[0][0]
+    b = constrained_curve(X, y, d)
+    return b[0]
+
+
+class LSQ:
+    def __init__(self, x, y, d):
+        n = x.size
+        self.A = np.ones((n, 2))
+        self.A[:, 1] = x ** (-2 / (d + 2))
+        self.y = y
+
+    def residuals(self, b):
+        return (np.dot(self.A, b) - self.y) ** 2
+
+
+def constrained_curve(x, y, d):
+    lsq = LSQ(x, y, d)
+    x0 = asymptotic_curve_lr(x, y, d)[0]
+    x0[0] = np.max(x) + 0.01
+    lb = np.array([np.max(y), -np.inf])
+    ub = np.array([np.inf, np.inf])
+    rtv = least_squares(lsq.residuals, x0,
+                        bounds=(lb, ub))
+    return rtv.x
 
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
