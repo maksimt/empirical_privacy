@@ -1,7 +1,6 @@
 from math import ceil
 import typing
 from abc import ABC
-from itertools import repeat
 from functools import partial
 
 import dill
@@ -54,6 +53,7 @@ class _ComputeAsymptoticAccuracy(
         _inputs = self.load_input_dict()
         res = _inputs['CCC']
         y = res['sd_matrix']
+        # since we sample rows of x, this is equivalent to block bootstrap
         x = np.tile(res['training_set_sizes'],
                     (res['sd_matrix'].shape[0], 1))
         x = x.astype(np.double)
@@ -124,11 +124,28 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
     return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
 
 
-def asymptotic_privacy_lr(X, y, d=6):
+def asymptotic_curve_lr(X, y, d=6):
+    """
+    y ~ b[0] + X**(-2/(d+2))*b[1]
+
+    Parameters
+    ----------
+    X :
+    y :
+    d :
+
+    Returns
+    -------
+
+    """
     n = X.size
     A = np.ones((n, 2))
     A[:, 1] = X**(-2/(d+2))
     b = np.linalg.lstsq(A, y)
+    return b
+
+def asymptotic_privacy_lr(X, y, d=6):
+    b = asymptotic_curve_lr(X, y, d)
     return b[0][0]
 
 
