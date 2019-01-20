@@ -38,8 +38,8 @@ class GenSampleOneBitSum(GenSample):
         num_samples = 1
         size = (num_samples, dimension)
         if self.dataset_settings['gen_distr_type'] == 'binom':
-            B0 = binom.rvs(n - 1, p, size=size) + 0
-            B1 = binom.rvs(n - 1, p, size=size) + 1
+            B0 = binom.rvs(n - 1, p, size=1) + 0
+            B1 = binom.rvs(n - 1, p, size=1) + 1
         elif self.dataset_settings['gen_distr_type'] == 'norm':
             sigma = sqrt((n - 0.75) / 12.0)
             mu = (n - 1.0) / 2
