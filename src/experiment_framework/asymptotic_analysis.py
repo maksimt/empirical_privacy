@@ -127,13 +127,15 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
 
 
 def asymptotic_privacy_lr(X, y, d=6):
+    y[y<0.5] = 0.5  # if the classifier is worse than random, the adversary
+                    # would just a random classifier
     b = asymptotic_curve_sqrt_lr(X, y)
     return b[0]
 
 
 def asymptotic_curve_sqrt_lr(X, y):
     """
-    y ~ b[0] - b[1]*odd(floor(sqrt(X)))
+    y ~ b[0] - b[1]*1/odd(floor(sqrt(X)))
 
     Parameters
     ----------
@@ -145,7 +147,7 @@ def asymptotic_curve_sqrt_lr(X, y):
     """
     n = X.size
     A = np.ones((n, 2))
-    A[:, 1] = [-1*get_k(method='sqrt', num_samples=x) for x in X]
+    A[:, 1] = [-1*1.0/get_k(method='sqrt', num_samples=x) for x in X]
     fit = np.linalg.lstsq(A, y)
     return fit[0]
 
