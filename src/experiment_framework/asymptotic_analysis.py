@@ -145,7 +145,7 @@ def asymptotic_curve_sqrt_lr(X, y):
     """
     n = X.size
     A = np.ones((n, 2))
-    A[:, 1] = [get_k(method='sqrt', num_samples=x) for x in X]
+    A[:, 1] = [-1*get_k(method='sqrt', num_samples=x) for x in X]
     fit = np.linalg.lstsq(A, y)
     return fit[0]
 
