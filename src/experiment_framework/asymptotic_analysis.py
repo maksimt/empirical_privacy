@@ -13,6 +13,7 @@ from experiment_framework.sampling_framework import ComputeConvergenceCurve
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
+from experiment_framework.privacy_estimator_mixins import get_k
 
 
 class _ComputeAsymptoticAccuracy(
@@ -125,7 +126,30 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
     return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
 
 
-def asymptotic_curve_lr(X, y, d=6):
+def asymptotic_privacy_lr(X, y, d=6):
+    b = asymptotic_curve_sqrt_lr(X, y)
+    return b[0]
+
+
+def asymptotic_curve_sqrt_lr(X, y):
+    """
+    y ~ b[0] - b[1]*odd(floor(sqrt(X)))
+
+    Parameters
+    ----------
+    X :
+    y :
+
+    Returns
+    -------
+    """
+    n = X.size
+    A = np.ones((n, 2))
+    A[:, 1] = [get_k(method='sqrt', num_samples=x) for x in X]
+    b = np.linalg.lstsq(A, y)
+    return b
+
+def asymptotic_curve_gyorfi_lr(X, y, d=6):
     """
     y ~ b[0] + X**(-2/(d+2))*b[1]
 
@@ -145,12 +169,19 @@ def asymptotic_curve_lr(X, y, d=6):
     b = np.linalg.lstsq(A, y)
     return b
 
-def asymptotic_privacy_lr(X, y, d=6):
-    b = constrained_curve(X, y, d)
-    return b[0]
 
+def constrained_curve(x, y, d):
+    lsq = LSQ(x, y, d)
+    x0 = asymptotic_curve_gyorfi_lr(x, y, d)[0]
+    x0[0] = np.max(x) + 0.01
+    lb = np.array([np.max(y), -np.inf])
+    ub = np.array([np.inf, np.inf])
+    rtv = least_squares(lsq.residuals, x0,
+                        bounds=(lb, ub))
+    return rtv.x
 
 class LSQ:
+    """Hold data so that least-squares residuals can be computed efficiently"""
     def __init__(self, x, y, d):
         n = x.size
         self.A = np.ones((n, 2))
@@ -160,16 +191,6 @@ class LSQ:
     def residuals(self, b):
         return (np.dot(self.A, b) - self.y) ** 2
 
-
-def constrained_curve(x, y, d):
-    lsq = LSQ(x, y, d)
-    x0 = asymptotic_curve_lr(x, y, d)[0]
-    x0[0] = np.max(x) + 0.01
-    lb = np.array([np.max(y), -np.inf])
-    ub = np.array([np.inf, np.inf])
-    rtv = least_squares(lsq.residuals, x0,
-                        bounds=(lb, ub))
-    return rtv.x
 
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,

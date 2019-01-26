@@ -1,4 +1,4 @@
-from math import ceil, sqrt
+from math import ceil, sqrt, floor
 
 import numpy as np
 from scipy.integrate import quad
@@ -81,6 +81,17 @@ def DensityEstFitterMixin(statistic_column=0, bandwidth_method=None):
 
     return T
 
+def get_k(method, num_samples, **kwargs):
+    if method == 'sqrt':
+        k = int(floor(sqrt(num_samples)))
+        if k % 2 == 0:  # ensure k is odd
+            k += 1
+    if method == 'gyorfi':
+        k = int(num_samples ** (2 / (d + 2)))
+        if k % 2 == 0:  # ensure k is odd
+            k += 1
+    return k
+
 
 def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
     class T(object):
@@ -100,16 +111,12 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
             KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
             if hasattr(neighbor_method, 'lower'):  # string
                 if neighbor_method == 'sqrt':
-                    k = int(ceil(sqrt(num_samples)))
-                    if k % 2 == 0:  # ensure k is odd
-                        k += 1
+                    k = get_k(neighbor_method, num_samples)
                     KNN.n_neighbors = k
                 if neighbor_method == 'gyorfi':
                     d = X0.shape[1]
                     self.d = d
-                    k = int(num_samples**(2/(d+2)))
-                    if k % 2 == 0:  # ensure k is odd
-                        k += 1
+                    k = get_k('gyorfi', num_samples, d=self.d)
                     KNN.n_neighbors = k
                 if neighbor_method == 'cv':
                     param_grid = \
@@ -124,9 +131,7 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
                     gs.fit(X, y)
                     KNN = gs.best_estimator_
                 if neighbor_method == 'sqrt_random_tiebreak':
-                    k = int(ceil(sqrt(num_samples)))
-                    if k % 2 == 0:  # ensure k is odd
-                        k += 1
+                    k = get_k('sqrt', num_samples)
                     KNN.n_neighbors = k
                     X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
 
