@@ -23,7 +23,7 @@ def test_asymptotic_generator():
     All = AllAsymptotics(
             gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
             dataset_settings=ds, asymptotic_settings=asys)
-    luigi.build([All], local_scheduler=True, workers=4, log_level='ERROR')
+    luigi.build([All], local_scheduler=True, workers=1, log_level='ERROR')
     AA = All.requires()[0]
     with AA.output().open() as f:
         res = dill.load(f)

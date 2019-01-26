@@ -66,8 +66,8 @@ class _ComputeAsymptoticAccuracy(
         else:
             d = samp.shape[1]
 
-        assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
-                     'd>=3, but d={}'.format(d)
+        # assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
+        #              'd>=3, but d={}'.format(d)
 
         n_bootstraps = hoeffding_n_given_t_and_p(
             t=self.confidence_interval_width,
@@ -146,8 +146,9 @@ def asymptotic_curve_sqrt_lr(X, y):
     n = X.size
     A = np.ones((n, 2))
     A[:, 1] = [get_k(method='sqrt', num_samples=x) for x in X]
-    b = np.linalg.lstsq(A, y)
-    return b
+    fit = np.linalg.lstsq(A, y)
+    return fit[0]
+
 
 def asymptotic_curve_gyorfi_lr(X, y, d=6):
     """
@@ -166,8 +167,8 @@ def asymptotic_curve_gyorfi_lr(X, y, d=6):
     n = X.size
     A = np.ones((n, 2))
     A[:, 1] = X**(-2/(d+2))
-    b = np.linalg.lstsq(A, y)
-    return b
+    fit = np.linalg.lstsq(A, y)
+    return fit[0]
 
 
 def constrained_curve(x, y, d):

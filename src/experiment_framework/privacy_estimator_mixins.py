@@ -81,7 +81,7 @@ def DensityEstFitterMixin(statistic_column=0, bandwidth_method=None):
 
     return T
 
-def get_k(method, num_samples, **kwargs):
+def get_k(method, num_samples, d=None, **kwargs):
     if method == 'sqrt':
         k = int(floor(sqrt(num_samples)))
         if k % 2 == 0:  # ensure k is odd
