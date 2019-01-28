@@ -1,4 +1,4 @@
-from math import ceil
+from math import ceil, sqrt
 import typing
 from abc import ABC
 from functools import partial
@@ -30,7 +30,7 @@ class _ComputeAsymptoticAccuracy(
     validation_set_size = luigi.IntParameter(default=2**10)
 
     confidence_interval_width = luigi.FloatParameter(default=0.01)
-    confidence_interval_prob = luigi.FloatParameter(default=0.99)
+    confidence_interval_prob = luigi.FloatParameter(default=0.90)
 
     def requires(self):
         reqs = {}
@@ -56,9 +56,9 @@ class _ComputeAsymptoticAccuracy(
         res = _inputs['CCC']
         y = res['sd_matrix']
         # since we sample rows of x, this is equivalent to block bootstrap
-        x = np.tile(res['training_set_sizes'],
+        X = np.tile(res['training_set_sizes'],
                     (res['sd_matrix'].shape[0], 1))
-        x = x.astype(np.double)
+        X = X.astype(np.double)
 
         samp = _inputs['Sample'].x
         if samp.ndim==1:
@@ -69,26 +69,37 @@ class _ComputeAsymptoticAccuracy(
         # assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
         #              'd>=3, but d={}'.format(d)
 
+        p_sqrt = sqrt(self.confidence_interval_prob)
+
         n_bootstraps = hoeffding_n_given_t_and_p(
             t=self.confidence_interval_width,
-            p=self.confidence_interval_prob
-        )
+            p=p_sqrt
+            )
+        k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
 
         bootstrap_samples = bootstrap_ci(
             n_bootstraps,
-            X=x,
+            X=X,
             y=y,
             f=partial(asymptotic_privacy_lr, d=d)
-        )
+            )
+        bootstrap_samples = np.array(bootstrap_samples)
+
+        std_est = brugger_std_estimator(bootstrap_samples)
+
+        ub = np.mean(bootstrap_samples) + self.confidence_interval_width \
+             + k_chebyshev * std_est
+        # from hoeffding UB + chebyshev UB
 
         rtv = {
             'mean' : np.mean(bootstrap_samples),
             'median' : np.median(bootstrap_samples),
-            'std': np.std(bootstrap_samples),
+            'std': std_est,
             'n_bootstraps': n_bootstraps,
-            'p' : self.confidence_interval_prob
+            'p' : self.confidence_interval_prob,
+            'k_chebyshev': k_chebyshev
             }
-        rtv['upper_bound'] = rtv['mean'] + self.confidence_interval_width
+        rtv['upper_bound'] = ub
         with self.output().open('wb') as f:
             dill.dump(rtv, f)
 
@@ -101,6 +112,19 @@ def ComputeAsymptoticAccuracy(
 
     T.CCC = compute_convergence_curve
     return T
+
+
+def brugger_std_estimator(x):
+    n = x.size
+    mu = np.mean(x)
+    left_factor = 1 / (n - 1.5)
+    right_factor = np.sum((x - mu) ** 2)
+    return sqrt(left_factor * right_factor)
+
+
+def chebyshev_k_from_upper_bound_prob(p_bound_holds):
+    p_bound_violated = 1 - p_bound_holds
+    return ceil(sqrt(1 / p_bound_violated))
 
 
 def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
@@ -129,7 +153,7 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
 def asymptotic_privacy_lr(X, y, d=6):
     y[y<0.5] = 0.5  # if the classifier is worse than random, the adversary
                     # would just a random classifier
-    b = asymptotic_curve_sqrt_lr(X, y)
+    b = asymptotic_curve_gyorfi_lr(X, y, d=d)
     return b[0]
 
 
@@ -168,7 +192,7 @@ def asymptotic_curve_gyorfi_lr(X, y, d=6):
     """
     n = X.size
     A = np.ones((n, 2))
-    A[:, 1] = X**(-2/(d+2))
+    A[:, 1] = [get_k(method='gyorfi', num_samples=x, d=d) for x in X]
     fit = np.linalg.lstsq(A, y)
     return fit[0]
 
