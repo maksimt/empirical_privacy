@@ -56,7 +56,7 @@ class _ComputeAsymptoticAccuracy(
         res = _inputs['CCC']
         CCC = self.requires()['CCC']
         R1 = list(CCC.requires().values())[0]
-        fit_model = R1.requires()['model']
+        fit_model = R1.requires()['model'].neighbor_method
 
         y = res['sd_matrix']
         # since we sample rows of x, this is equivalent to block bootstrap
