@@ -100,7 +100,8 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     class FM(F(**fitter_kwargs), FitModel(GSs)):
         pass
 
-    FM.__name__ = gs_name + 'FitModel' + fitter + hash(pformat(fitter_kwargs))
+    FM.__name__ = gs_name + 'FitModel' + fitter \
+                  + str(hash(pformat(fitter_kwargs)))
 
     class ESD(EvaluateStatisticalDistance(samplegen=GSs, model=FM)):
         pass
