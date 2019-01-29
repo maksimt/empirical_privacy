@@ -54,6 +54,10 @@ class _ComputeAsymptoticAccuracy(
     def run(self):
         _inputs = self.load_input_dict()
         res = _inputs['CCC']
+        CCC = _inputs['CCC']
+        R1 = list(CCC.requires().values())[0]
+        fit_model = R1.requires()['model']
+
         y = res['sd_matrix']
         # since we sample rows of x, this is equivalent to block bootstrap
         X = np.tile(res['training_set_sizes'],
@@ -81,7 +85,7 @@ class _ComputeAsymptoticAccuracy(
             n_bootstraps,
             X=X,
             y=y,
-            f=partial(asymptotic_privacy_lr, d=d)
+            f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
             )
         bootstrap_samples = np.array(bootstrap_samples)
 
@@ -150,10 +154,13 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
     return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
 
 
-def asymptotic_privacy_lr(X, y, d=6):
+def asymptotic_privacy_lr(X, y, fit_model, d=None):
     y[y<0.5] = 0.5  # if the classifier is worse than random, the adversary
                     # would just a random classifier
-    b = asymptotic_curve_gyorfi_lr(X, y, d=d)
+    if fit_model == 'gyorfi':
+        b = asymptotic_curve_gyorfi_lr(X, y, d=d)
+    elif fit_model == 'sqrt':
+        b = asymptotic_curve_sqrt_lr(X, y)
     return b[0]
 
 
@@ -171,7 +178,7 @@ def asymptotic_curve_sqrt_lr(X, y):
     """
     n = X.size
     A = np.ones((n, 2))
-    A[:, 1] = [-1*1.0/get_k(method='sqrt', num_samples=x) for x in X]
+    A[:, 1] = [1.0/get_k(method='sqrt', num_samples=x) for x in X]
     fit = np.linalg.lstsq(A, y)
     return fit[0]
 

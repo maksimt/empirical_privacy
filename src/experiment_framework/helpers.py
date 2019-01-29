@@ -1,7 +1,8 @@
-from typing import Sequence
 import dill
 import copy
 import logging
+from pprint import pformat
+from typing import Sequence
 
 import luigi
 import pandas as pd
@@ -99,7 +100,7 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     class FM(F(**fitter_kwargs), FitModel(GSs)):
         pass
 
-    FM.__name__ = gs_name + 'FitModel' + fitter
+    FM.__name__ = gs_name + 'FitModel' + fitter + hash(pformat(fitter_kwargs))
 
     class ESD(EvaluateStatisticalDistance(samplegen=GSs, model=FM)):
         pass
