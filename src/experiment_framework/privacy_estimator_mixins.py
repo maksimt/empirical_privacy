@@ -103,7 +103,6 @@ def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
 
             X0, X1 = _ensure_2dim(X0, X1)
 
-
             X = np.vstack((X0, X1))
             y = np.concatenate((y0, y1))
             num_samples = X.shape[0]

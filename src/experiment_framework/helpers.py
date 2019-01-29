@@ -100,6 +100,9 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     class FM(F(**fitter_kwargs), FitModel(GSs)):
         pass
 
+    # we add the hash to the name because the fitter_kwargs are not stored by
+    # luigi, and so it wouldn't recognize calls with different fitter_kwargs
+    # otherwise
     FM.__name__ = gs_name + 'FitModel' + fitter \
                   + str(hash(pformat(fitter_kwargs)))
 

@@ -54,7 +54,7 @@ class _ComputeAsymptoticAccuracy(
     def run(self):
         _inputs = self.load_input_dict()
         res = _inputs['CCC']
-        CCC = _inputs['CCC']
+        CCC = self.requires()['CCC']
         R1 = list(CCC.requires().values())[0]
         fit_model = R1.requires()['model']
 
