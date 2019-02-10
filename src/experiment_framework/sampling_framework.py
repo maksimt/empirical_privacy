@@ -65,7 +65,9 @@ class _ComputeConvergenceCurve(
 
     @property
     def _training_set_sizes(self):
-        return np.logspace(self.pow_min, self.n_steps + 2, num=self.n_steps,
+        return np.logspace(start=self.pow_min,
+                           stop=self.pow_min + self.n_steps - 1,
+                           num=self.n_steps,
                            dtype=int, base=SAMPLES_BASE)
 
     def requires(self):

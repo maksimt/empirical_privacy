@@ -67,7 +67,7 @@ def test_compute_stat_dist(ds_rs):
 def ccc_kwargs(ds_rs):
     return {
         'n_trials_per_training_set_size': 3,
-        'n_max'                         : 64,
+        'n_max'                         : 2**9,
         'dataset_settings'              : ds_rs['dataset_settings'],
         'validation_set_size'           : 10
         }
@@ -94,7 +94,10 @@ def expected_sd_matrix_shape(ccc_kwargs):
     return (n_row, n_col)
 
 
-def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape):
+def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape,
+                                   ccc_kwargs):
+    assert simple_ccc['training_set_sizes'][0] == MIN_SAMPLES
+    assert simple_ccc['training_set_sizes'][-1] == ccc_kwargs['n_max']
     assert simple_ccc['sd_matrix'].shape == expected_sd_matrix_shape
 
 
@@ -180,7 +183,7 @@ def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotic_settings={'n_docs': 1, 'n_max':128}
+        asymptotic_settings={'n_docs': 1, 'n_max':2**9}
     )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]

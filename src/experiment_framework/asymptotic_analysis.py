@@ -156,10 +156,10 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
 
 def asymptotic_privacy_lr(X, y, fit_model, d=None):
     y[y<0.5] = 0.5  # if the classifier is worse than random, the adversary
-                    # would just a random classifier
+                    # would just use a random classifier
     if fit_model == 'gyorfi':
         b = asymptotic_curve_gyorfi_lr(X, y, d=d)
-    elif fit_model == 'sqrt':
+    elif 'sqrt' in fit_model:
         b = asymptotic_curve_sqrt_lr(X, y)
     return b[0]
 
