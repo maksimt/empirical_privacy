@@ -70,40 +70,24 @@ class _ComputeAsymptoticAccuracy(
         else:
             d = samp.shape[1]
 
-        # assert d>=3, 'This convergence rate is only guaranteed to hold when ' \
-        #              'd>=3, but d={}'.format(d)
+        if fit_model == 'gyorfi':
+            assert d>=3, 'The gyorfi convergence rate is only guaranteed to ' \
+                         'hold when d>=3, but d={}.'.format(d)
 
-        p_sqrt = sqrt(self.confidence_interval_prob)
-
-        n_bootstraps = hoeffding_n_given_t_and_p(
-            t=self.confidence_interval_width,
-            p=p_sqrt
-            )
-        k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
-
-        bootstrap_samples = bootstrap_ci(
-            n_bootstraps,
-            X=X,
-            y=y,
-            f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
-            )
-        bootstrap_samples = np.array(bootstrap_samples)
-
-        std_est = brugger_std_estimator(bootstrap_samples)
-
-        ub = np.mean(bootstrap_samples) + self.confidence_interval_width \
-             + k_chebyshev * std_est
-        # from hoeffding UB + chebyshev UB
+        res = compute_bootstrapped_upper_bound(
+            X=X, y=y, d=d, fit_model=fit_model,
+            confidence_interval_prob=self.confidence_interval_prob,
+            confidence_interval_width=self.confidence_interval_width)
 
         rtv = {
-            'mean' : np.mean(bootstrap_samples),
-            'median' : np.median(bootstrap_samples),
-            'std': std_est,
-            'n_bootstraps': n_bootstraps,
+            'mean' : np.mean(res['bootstrap_samples']),
+            'median' : np.median(res['bootstrap_samples']),
+            'std': res['std_est'],
+            'n_bootstraps': res['n_bootstraps'],
             'p' : self.confidence_interval_prob,
-            'k_chebyshev': k_chebyshev
+            'k_chebyshev': res['k_chebyshev']
             }
-        rtv['upper_bound'] = ub
+        rtv['upper_bound'] = res['ub']
         with self.output().open('wb') as f:
             dill.dump(rtv, f)
 
@@ -117,6 +101,31 @@ def ComputeAsymptoticAccuracy(
     T.CCC = compute_convergence_curve
     return T
 
+def compute_bootstrapped_upper_bound(X, d, fit_model, y,
+                                     confidence_interval_prob,
+                                     confidence_interval_width):
+    p_sqrt = sqrt(confidence_interval_prob)
+    n_bootstraps = hoeffding_n_given_t_and_p(
+        t=confidence_interval_width,
+        p=p_sqrt
+        )
+    k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
+    bootstrap_samples = bootstrap_ci(
+        n_bootstraps,
+        X=X,
+        y=y,
+        f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
+        )
+    bootstrap_samples = np.array(bootstrap_samples)
+    std_est = brugger_std_estimator(bootstrap_samples)
+    # from hoeffding UB + chebyshev UB
+    ub = np.mean(bootstrap_samples) + confidence_interval_width \
+         + k_chebyshev * std_est
+    return {'bootstrap_samples': bootstrap_samples,
+            'k_chebyshev': k_chebyshev,
+            'n_bootstraps': n_bootstraps,
+            'std_est': std_est,
+            'ub': ub}
 
 def brugger_std_estimator(x):
     n = x.size
