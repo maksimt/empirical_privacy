@@ -237,6 +237,7 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
                  f: typing.Callable[[np.ndarray, np.ndarray, int], np.double]) \
         -> np.ndarray:
     """
+    Perform block bootstrap row-wise and then reshape into 1-dim arrays
 
     Examples
     --------
