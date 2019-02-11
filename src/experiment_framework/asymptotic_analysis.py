@@ -208,9 +208,9 @@ def asymptotic_privacy_lr(training_set_sizes,
 
 def transform_n_to_k_for_knn(Ns, fit_model, d=None):
     if fit_model == 'gyorfi':
-        rtv = [-1*get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
+        rtv = [-1.0 / get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
     elif 'sqrt' in fit_model:
-        rtv = [1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
+        rtv = [-1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
     return np.array(rtv)
 
 
