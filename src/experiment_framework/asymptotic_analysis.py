@@ -119,25 +119,14 @@ def compute_bootstrapped_upper_bound(X, d, fit_model, y,
     bootstrap_samples = np.array(bootstrap_samples)
     std_est = brugger_std_estimator(bootstrap_samples)
     # from hoeffding UB + chebyshev UB
-    ub = np.mean(bootstrap_samples) + confidence_interval_width \
+    ub = np.mean(bootstrap_samples) \
+         + confidence_interval_width \
          + k_chebyshev * std_est
     return {'bootstrap_samples': bootstrap_samples,
             'k_chebyshev': k_chebyshev,
             'n_bootstraps': n_bootstraps,
             'std_est': std_est,
             'ub': ub}
-
-def brugger_std_estimator(x):
-    n = x.size
-    mu = np.mean(x)
-    left_factor = 1 / (n - 1.5)
-    right_factor = np.sum((x - mu) ** 2)
-    return sqrt(left_factor * right_factor)
-
-
-def chebyshev_k_from_upper_bound_prob(p_bound_holds):
-    p_bound_violated = 1 - p_bound_holds
-    return ceil(sqrt(1 / p_bound_violated))
 
 
 def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
@@ -163,19 +152,71 @@ def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
     return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
 
 
-def asymptotic_privacy_lr(X, y, fit_model, d=None):
-    y[y<0.5] = 0.5  # if the classifier is worse than random, the adversary
-                    # would just use a random classifier
-    if fit_model == 'gyorfi':
-        b = asymptotic_curve_gyorfi_lr(X, y, d=d)
-    elif 'sqrt' in fit_model:
-        b = asymptotic_curve_sqrt_lr(X, y)
+def chebyshev_k_from_upper_bound_prob(p_bound_holds:np.double) -> int:
+    """
+    Return k such with with probability at least p_bound_holds X will be < mu + k*sigma
+
+    Parameters
+    ----------
+    p_bound_holds : double
+
+    Returns
+    -------
+
+    """
+    p_bound_violated = 1 - p_bound_holds
+    return int(ceil(sqrt(1 / p_bound_violated)))
+
+
+def brugger_std_estimator(x:np.array) -> np.double:
+    """
+    A standard deviation estimator that attempts to correct the bias of a
+    regular n-1 DOF standard deviation estimator.
+
+    Assumes data is normally distributed. This is a reasonable assumption for us
+    since each data point is the classifier accuracy, which is a function of
+    the sum of many iid classification decisions.
+
+    Parameters
+    ----------
+    x : np.array
+
+    Returns
+    -------
+
+    """
+    n = x.size
+    mu = np.mean(x)
+    left_factor = 1 / (n - 1.5)
+    right_factor = np.sum((x - mu) ** 2)
+    return sqrt(left_factor * right_factor)
+
+
+def asymptotic_privacy_lr(training_set_sizes,
+                          classifier_accuracies,
+                          fit_model, d=None):
+    classifier_accuracies[classifier_accuracies < 0.5] = 0.5  # if the
+    # classifier is worse than random, the adversary would just guess randomly
+    # this accuracy is a lower bound for the random guess, when priors are
+    # 0.5 each. If one class had a larger prior we'd always guess that class.
+    Ks = transform_n_to_k_for_knn(Ns=training_set_sizes,
+                                  fit_model=fit_model,
+                                  d=d)
+    b = asymptotic_curve(Ks, classifier_accuracies)
     return b[0]
 
 
-def asymptotic_curve_sqrt_lr(X, y):
+def transform_n_to_k_for_knn(Ns, fit_model, d=None):
+    if fit_model == 'gyorfi':
+        rtv = [-1*get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
+    elif 'sqrt' in fit_model:
+        rtv = [1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
+    return np.array(rtv)
+
+
+def asymptotic_curve(X, y):
     """
-    y ~ b[0] - b[1]*1/odd(floor(sqrt(X)))
+    y ~ b[0] + b[1]*X
 
     Parameters
     ----------
@@ -187,53 +228,9 @@ def asymptotic_curve_sqrt_lr(X, y):
     """
     n = X.size
     A = np.ones((n, 2))
-    A[:, 1] = [1.0/get_k(method='sqrt', num_samples=x) for x in X]
+    A[:, 1] = X
     fit = np.linalg.lstsq(A, y)
     return fit[0]
-
-
-def asymptotic_curve_gyorfi_lr(X, y, d=6):
-    """
-    y ~ b[0] + X**(-2/(d+2))*b[1]
-
-    Parameters
-    ----------
-    X :
-    y :
-    d :
-
-    Returns
-    -------
-
-    """
-    n = X.size
-    A = np.ones((n, 2))
-    A[:, 1] = [get_k(method='gyorfi', num_samples=x, d=d) for x in X]
-    fit = np.linalg.lstsq(A, y)
-    return fit[0]
-
-
-def constrained_curve(x, y, d):
-    lsq = LSQ(x, y, d)
-    x0 = asymptotic_curve_gyorfi_lr(x, y, d)[0]
-    x0[0] = np.max(x) + 0.01
-    lb = np.array([np.max(y), -np.inf])
-    ub = np.array([np.inf, np.inf])
-    rtv = least_squares(lsq.residuals, x0,
-                        bounds=(lb, ub))
-    return rtv.x
-
-class LSQ:
-    """Hold data so that least-squares residuals can be computed efficiently"""
-    def __init__(self, x, y, d):
-        n = x.size
-        self.A = np.ones((n, 2))
-        self.A[:, 1] = x ** (-2 / (d + 2))
-        self.y = y
-
-    def residuals(self, b):
-        return (np.dot(self.A, b) - self.y) ** 2
-
 
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
