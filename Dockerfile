@@ -8,12 +8,6 @@ WORKDIR /emp_priv
 
 ENV PYTHONPATH "/emp_priv/src/:${PYTHONPATH}"
 
-COPY requirements.txt /tmp/requirements.txt
-
-RUN pip install -r /tmp/requirements.txt
-
-USER root
-
 RUN mkdir /datasets && \
     cd /datasets && \
     echo "Downloading Online News & Million Songs & MovieLens-1M Datasets" && \
@@ -32,3 +26,12 @@ RUN python -c "from sklearn.datasets.twenty_newsgroups import fetch_20newsgroups
                 fetch_20newsgroups(data_home='/datasets', subset='all')"
 
 RUN conda install -f -y mkl blas=*=mkl
+
+COPY requirements.txt /tmp/requirements.txt
+
+RUN pip install -r /tmp/requirements.txt
+
+USER root
+
+RUN apt-get update && apt-get install -y --force-yes \
+    gs
