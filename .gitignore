@@ -8,3 +8,4 @@
 *.pytest_cache*
 *luigi_completed*
 .DS_Store
+._*
