@@ -7,7 +7,6 @@ import dill
 import luigi
 import numpy as np
 from sklearn.utils import resample
-from scipy.optimize import least_squares
 
 from experiment_framework.sampling_framework import ComputeConvergenceCurve
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
