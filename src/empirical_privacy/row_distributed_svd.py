@@ -41,7 +41,7 @@ def svd_asymptotic_settings(n_docs=5,
             'neighbor_method': 'gyorfi'
             },
         'n_docs'                        : n_docs,
-        'n_trials_per_training_set_size': 15,
+        'n_trials_per_training_set_size': 30,
         'n_max'                         : n_max,
         'validation_set_size'           : 2**10
     }
