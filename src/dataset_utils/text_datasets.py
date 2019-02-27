@@ -13,7 +13,7 @@ memory = Memory(cachedir=LUIGI_COMPLETED_TARGETS_DIR, verbose=0)
 def load_dataset(dataset_name):
     available_names = ['20NG']
     if dataset_name is None:
-        print('Warning no dataset_name provided, loading MillionSongs')
+        print('Warning no dataset_name provided, loading 20NG')
         dataset_name = '20NG'
     if dataset_name not in available_names:
         raise ValueError(
@@ -29,6 +29,7 @@ def load_dataset(dataset_name):
 def _vectorizer() -> CountVectorizer:
     return CountVectorizer(max_df=0.1, min_df=100,
                                     stop_words='english')
+
 
 @memory.cache
 def twenty_ds():
@@ -58,6 +59,7 @@ def twenty_ds():
         'Xte': Xte, 'yte': twenty_te.target[I_rows_te]
     }
 
+
 def get_twenty_doc(doc_ind, subset='train'):
     twenty = fetch_20newsgroups(shuffle=True, subset=subset,
                                    random_state=1, data_home='/datasets',
@@ -71,6 +73,7 @@ def get_twenty_doc(doc_ind, subset='train'):
 
     n, d = X.shape
 
+    # idf weighting is only used to display top words in this document
     idf = np.log(n/(np.sum(X>0,0)+1))
     x_tfidf = X[doc_ind, :] * idf
 
@@ -85,8 +88,10 @@ def get_twenty_doc(doc_ind, subset='train'):
             'words': list(zip(x_tfidf[J][I], vocab))}
     return rtv
 
+
 def _normalize(X, axis=1):
     return X / (X.sum(axis)[:, np.newaxis] + np.spacing(10))
+
 
 def _remove_zero_rows_cols(X, min_row=1, min_col=1):
     """Remove rows and columns of X that sum to 0

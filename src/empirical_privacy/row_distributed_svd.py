@@ -41,23 +41,27 @@ def svd_asymptotic_settings(n_docs=5,
             'neighbor_method': 'gyorfi'
             },
         'n_docs'                        : n_docs,
-        'n_trials_per_training_set_size': 15,
+        'n_trials_per_training_set_size': 30,
         'n_max'                         : n_max,
         'validation_set_size'           : 2**10
     }
     return setv
 
-def svd_reqs():
-    DATASETS = ['ml-1m']  # ['20NG', 'ml-1m']
-    PART_FRACTIONS = [0.01, 0.1]  # [0.01, 0.1]
-
+def svd_reqs(datasets=None, part_fractions=None, svd_kwargs=None):
+    if datasets is None:
+        datasets = ['ml-1m', '20NG']#, 'ml-1m']
+    if part_fractions is None:
+        part_fractions = [0.01, 0.1, 0.9]  # [0.01, 0.1]
+    if svd_kwargs is None:
+        svd_kwargs = dict()
     reqs = []
     aas = svd_asymptotic_settings()
-    for ds, pf in product(DATASETS, PART_FRACTIONS):
-        dss = svd_dataset_settings(dataset_name=ds, part_fraction=pf)
+    for ds, pf in product(datasets, part_fractions):
+        dss = svd_dataset_settings(dataset_name=ds,
+                                   part_fraction=pf,
+                                   **svd_kwargs)
         reqs += AllAsymptotics(
-            gen_sample_path='empirical_privacy.row_distributed_svd'
-                            '.GenSVDSample',
+            gen_sample_path='empirical_privacy.row_distributed_svd.GenSVDSample',
             dataset_settings = dss,
             asymptotic_settings = aas
         ).requires()
@@ -288,27 +292,13 @@ def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
             )
     return AAs
 
-class All(luigi.WrapperTask):
-    CCCType = luigi.Parameter()
-    def requires(self):
-        logging.warning('All is deprecated, use AllSVDAsymptotics')
-        AAs = []
-        for n_max in [2 ** 8, 2 ** 9, 2 ** 10, 2 ** 11, 2 ** 12, 2 ** 13]:
-            for dataset in ['ml-1m', '20NG']:#['20NG', 'ml-1m']:
-                for trials in range(15):
-                    for part_fraction in [0.01, 0.1, 0.5]:
-                        ds = svd_dataset_settings(dataset_name=dataset,
-                                                  part_fraction=part_fraction)
-                        _AAs = gen_SVD_asymptotics_for_multiple_docs(n_max=n_max,
-                                                                      validation_set_size=2**10,
-                                                                      n_docs=5,
-                                                                      n_trials_per_training_set_size=trials,
-                                                                      dataset_settings=ds
-                                                                      )
-                        AAs += _AAs
-        return AAs
-
 
 class AllSVDAsymptotics(luigi.WrapperTask):
+    datasets = luigi.Parameter(default=None)
+    part_fractions = luigi.Parameter(default=None)
+    svd_kwargs = luigi.DictParameter(default=None)
+
     def requires(self):
-        return svd_reqs()
+        return svd_reqs(datasets=self.datasets,
+                        part_fractions=self.part_fractions,
+                        svd_kwargs=self.svd_kwargs)

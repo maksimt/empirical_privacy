@@ -8,3 +8,5 @@
 *.pytest_cache*
 *luigi_completed*
 .DS_Store
+._*
+*eps-converted-to.pdf
