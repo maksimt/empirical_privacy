@@ -2,9 +2,13 @@ FROM jupyter/scipy-notebook:177037d09156
 
 MAINTAINER Maksim Tsikhanovich <github.com/maksimt>
 
+USER root
+
 VOLUME /emp_priv
 
 WORKDIR /emp_priv
+
+RUN chown -R jovyan:users /emp_priv
 
 ENV PYTHONPATH "/emp_priv/src/:${PYTHONPATH}"
 
