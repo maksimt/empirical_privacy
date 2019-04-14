@@ -11,6 +11,9 @@ class GenSampleLaplaceMechanism(GenSample):
         self.X1 = np.zeros((1, self.dataset_settings['dimension']))
         self.X1[0,0] = 1
         self.sensitivity = 1.
+        self.one = np.ones((1,))
+        self.zero = np.zeros((1,))
+
         self.epsilon = self.dataset_settings['epsilon']
 
 
@@ -19,13 +22,15 @@ class GenSampleLaplaceMechanism(GenSample):
 
         if self.generate_positive_sample:
             X = self.X1
-            y = 1
+            y = self.one
         else:
             X = self.X0
-            y = 0
+            y = self.zero
 
         Xh = X + np.random.laplace(loc=0,  # mu
                                    scale=self.sensitivity / self.epsilon,
                                    size=X.size)
+
+        Xh = np.round(Xh, 6)  # mitigate LSB attack
 
         return Xh, y
