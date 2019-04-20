@@ -18,7 +18,16 @@ class GenSampleLaplaceMechanism(GenSample):
 
 
     def gen_sample(self, sample_number):
-        np.random.seed(sample_number)
+        seed_val = self.random_seed
+        try:
+            seed_val = 'seed{sv}doc{di}'.format(
+                di=self.dataset_settings['doc_ind'],
+                sv=seed_val
+                )
+        except KeyError:
+            pass
+
+        GenSample.set_simple_random_seed(sample_number, seed_val)
 
         if self.generate_positive_sample:
             X = self.X1
