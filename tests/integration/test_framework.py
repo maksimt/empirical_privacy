@@ -5,7 +5,6 @@ import dill
 import luigi
 import numpy as np
 import pytest
-from scipy.stats import binom
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
@@ -22,12 +21,13 @@ def ds_rs():
     return {
         'dataset_settings': {
             'n_trials'      : n,
-            'prob_success': p,
+            'prob_success'  : p,
             'gen_distr_type': 'binom',
-        },
+            },
         'random_seed'     : '1338',
-        'sd': one_bit_sum.sd(n, p)
-    }
+        'sd'              : one_bit_sum.sd(n, p)
+        }
+
 
 def test_gen_samples_one_bit(ds_rs):
     try:
@@ -54,6 +54,10 @@ def test_fit_model_one_bit(ds_rs):
 
 
 def test_compute_stat_dist(ds_rs):
+    try:
+        ds_rs.pop('sd')
+    except KeyError:
+        pass
     ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=200,
                                           validation_set_size=500,
                                           **ds_rs)
@@ -67,7 +71,7 @@ def test_compute_stat_dist(ds_rs):
 def ccc_kwargs(ds_rs):
     return {
         'n_trials_per_training_set_size': 3,
-        'n_max'                         : 2**9,
+        'n_max'                         : 2 ** 9,
         'dataset_settings'              : ds_rs['dataset_settings'],
         'validation_set_size'           : 10
         }
@@ -83,7 +87,7 @@ def simple_ccc(ccc_kwargs):
 
 
 @pytest.fixture(scope='session')
-def expected_sd_matrix_shape(ccc_kwargs):
+def expected_accuracy_matrix_shape(ccc_kwargs):
     n_row = ccc_kwargs['n_trials_per_training_set_size']
     pow_min = np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
                        + np.spacing(1)).astype(np.int)
@@ -94,11 +98,11 @@ def expected_sd_matrix_shape(ccc_kwargs):
     return (n_row, n_col)
 
 
-def test_compute_convergence_curve(simple_ccc, expected_sd_matrix_shape,
+def test_compute_convergence_curve(simple_ccc, expected_accuracy_matrix_shape,
                                    ccc_kwargs):
     assert simple_ccc['training_set_sizes'][0] == MIN_SAMPLES
     assert simple_ccc['training_set_sizes'][-1] == ccc_kwargs['n_max']
-    assert simple_ccc['sd_matrix'].shape == expected_sd_matrix_shape
+    assert simple_ccc['accuracy_matrix'].shape == expected_accuracy_matrix_shape
 
 
 @pytest.fixture(scope='session')
@@ -106,7 +110,7 @@ def built_ccc(ccc_kwargs):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                           })
+                                               })
     CCC2_inst = CCC(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
@@ -117,7 +121,7 @@ def built_ccc(ccc_kwargs):
 
 
 def test_ccc_pipeline_builder(simple_ccc, built_ccc):
-    assert np.allclose(built_ccc['res']['sd_matrix'], simple_ccc['sd_matrix'])
+    assert np.allclose(built_ccc['res']['accuracy_matrix'], simple_ccc['accuracy_matrix'])
 
 
 def test_built_ccc_cached_correctly(built_ccc, ccc_kwargs):
@@ -147,26 +151,26 @@ def test_delete_deps(built_ccc, ccc_kwargs):
 
 
 @pytest.mark.parametrize('fitter', ['density', 'expectation'])
-def test_other_ccc_fitters(fitter, ccc_kwargs, expected_sd_matrix_shape):
+def test_other_ccc_fitters(fitter, ccc_kwargs, expected_accuracy_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                           },
+                                               },
                                            fitter=fitter)
     TheCCC = CCC(**ccc_kwargs)
     luigi.build([TheCCC], local_scheduler=True, workers=1,
                 log_level='ERROR')
     with TheCCC.output().open() as f:
         res = dill.load(f)
-    assert res['sd_matrix'].shape == expected_sd_matrix_shape
-    assert np.all((0 <= res['sd_matrix']) & (res['sd_matrix'] <= 1))
+    assert res['accuracy_matrix'].shape == expected_accuracy_matrix_shape
+    assert np.all((0 <= res['accuracy_matrix']) & (res['accuracy_matrix'] <= 1))
 
 
-def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
+def test_load_CCCs_into_DF(ccc_kwargs, expected_accuracy_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                           },
+                                               },
                                            fitter='knn')
     CCCs = []
     for rs in range(5, 10):
@@ -175,7 +179,7 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_sd_matrix_shape):
         CCCs.append(CCC(**ck))
     luigi.build(CCCs, local_scheduler=True, workers=4, log_level='ERROR')
     DF = load_completed_CCCs_into_dataframe(CCCs)
-    n_rows_exp = np.prod(expected_sd_matrix_shape) * 5
+    n_rows_exp = np.prod(expected_accuracy_matrix_shape) * 5
     assert DF.shape == (n_rows_exp, 9)
 
 
@@ -183,8 +187,8 @@ def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotic_settings={'n_docs': 1, 'n_max':2**9}
-    )
+        asymptotic_settings={'n_docs': 1, 'n_max': 2 ** 9}
+        )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]
     with AA.output().open() as f:
@@ -203,11 +207,12 @@ def test_importlib(ds_rs):
         generate_positive_sample=True,
         sample_number=0,
         **ds_rs
-    )
+        )
     luigi.build([GSTask], local_scheduler=True, workers=1, log_level='ERROR')
     with GSTask.output().open() as f:
         samples = dill.load(f)
     assert samples.y[0] == 1
+
 
 def test_attr_string_handling(ds_rs):
     try:

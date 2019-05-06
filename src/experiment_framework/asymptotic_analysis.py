@@ -1,18 +1,22 @@
-from math import ceil, sqrt
 import typing
 from abc import ABC
 from functools import partial
+from math import sqrt
 
 import dill
 import luigi
 import numpy as np
 from sklearn.utils import resample
 
-from experiment_framework.sampling_framework import ComputeConvergenceCurve
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
+from experiment_framework.calculations import (
+    hoeffding_n_given_t_and_p_two_sided,
+    chebyshev_k_from_upper_bound_prob,
+)
 from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
 from experiment_framework.privacy_estimator_mixins import get_k
+from experiment_framework.sampling_framework import ComputeConvergenceCurve
 
 
 class _ComputeAsymptoticAccuracy(
@@ -21,12 +25,11 @@ class _ComputeAsymptoticAccuracy(
     DeleteDepsRecursively,
     luigi.Task,
     ABC
-    ):
-
+):
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
     dataset_settings = luigi.DictParameter()
-    validation_set_size = luigi.IntParameter(default=2**10)
+    validation_set_size = luigi.IntParameter(default=2 ** 10)
 
     confidence_interval_width = luigi.FloatParameter(default=0.01)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
@@ -35,17 +38,17 @@ class _ComputeAsymptoticAccuracy(
         reqs = {}
         reqs['CCC'] = self.CCC(
             n_trials_per_training_set_size=self.n_trials_per_training_set_size,
-            n_max = self.n_max,
+            n_max=self.n_max,
             dataset_settings=self.dataset_settings,
             validation_set_size=self.validation_set_size
-       )
+        )
         # a sample is needed for inferring dimension
         reqs['Sample'] = self.CCC.compute_stat_dist.samplegen. \
             gen_sample_type(
-            dataset_settings = self.dataset_settings,
-            random_seed = 0,
-            generate_positive_sample = True,
-            sample_number = 0
+            dataset_settings=self.dataset_settings,
+            random_seed=0,
+            generate_positive_sample=True,
+            sample_number=0
         )
 
         return reqs
@@ -57,21 +60,21 @@ class _ComputeAsymptoticAccuracy(
         R1 = list(CCC.requires().values())[0]
         fit_model = R1.requires()['model'].neighbor_method
 
-        y = res['sd_matrix']
+        y = res['accuracy_matrix']
         # since we sample rows of x, this is equivalent to block bootstrap
         X = np.tile(res['training_set_sizes'],
-                    (res['sd_matrix'].shape[0], 1))
+                    (res['accuracy_matrix'].shape[0], 1))
         X = X.astype(np.double)
 
         samp = _inputs['Sample'].x
-        if samp.ndim==1:
+        if samp.ndim == 1:
             d = 1
         else:
             d = samp.shape[1]
 
         if fit_model == 'gyorfi':
-            assert d>=3, 'The gyorfi convergence rate is only guaranteed to ' \
-                         'hold when d>=3, but d={}.'.format(d)
+            assert d >= 3, 'The gyorfi convergence rate is only guaranteed to ' \
+                           'hold when d>=3, but d={}.'.format(d)
 
         res = compute_bootstrapped_upper_bound(
             X=X, y=y, d=d, fit_model=fit_model,
@@ -79,95 +82,64 @@ class _ComputeAsymptoticAccuracy(
             confidence_interval_width=self.confidence_interval_width)
 
         rtv = {
-            'mean' : np.mean(res['bootstrap_samples']),
-            'median' : np.median(res['bootstrap_samples']),
-            'std': res['std_est'],
+            'mean'        : np.mean(res['bootstrap_samples']),
+            'median'      : np.median(res['bootstrap_samples']),
+            'std'         : res['std_est'],
             'n_bootstraps': res['n_bootstraps'],
-            'p' : self.confidence_interval_prob,
-            'k_chebyshev': res['k_chebyshev']
-            }
+            'p'           : self.confidence_interval_prob,
+            'k_chebyshev' : res['k_chebyshev']
+        }
         rtv['upper_bound'] = res['ub']
+        rtv['lower_bound'] = res['lb']
         with self.output().open('wb') as f:
             dill.dump(rtv, f)
 
 
 def ComputeAsymptoticAccuracy(
         compute_convergence_curve: ComputeConvergenceCurve
-        ) -> _ComputeAsymptoticAccuracy:
+) -> _ComputeAsymptoticAccuracy:
     class T(_ComputeAsymptoticAccuracy):
         pass
 
     T.CCC = compute_convergence_curve
     return T
 
+
 def compute_bootstrapped_upper_bound(X, d, fit_model, y,
                                      confidence_interval_prob,
                                      confidence_interval_width):
     p_sqrt = sqrt(confidence_interval_prob)
-    n_bootstraps = hoeffding_n_given_t_and_p(
+    n_bootstraps = hoeffding_n_given_t_and_p_two_sided(
         t=confidence_interval_width,
         p=p_sqrt
-        )
+    )
     k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
     bootstrap_samples = bootstrap_ci(
         n_bootstraps,
         X=X,
         y=y,
         f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
-        )
+    )
     bootstrap_samples = np.array(bootstrap_samples)
     std_est = brugger_std_estimator(bootstrap_samples)
     # from hoeffding UB + chebyshev UB
-    ub = np.mean(bootstrap_samples) \
-         + confidence_interval_width \
-         + k_chebyshev * std_est
-    return {'bootstrap_samples': bootstrap_samples,
-            'k_chebyshev': k_chebyshev,
-            'n_bootstraps': n_bootstraps,
-            'std_est': std_est,
-            'ub': ub}
+    bound_whisker = + confidence_interval_width + k_chebyshev * std_est
+    mean_ = np.mean(bootstrap_samples)
+    ub = mean_ + bound_whisker
+    lb = mean_ - bound_whisker
+
+    return {
+        'bootstrap_samples': bootstrap_samples,
+        'k_chebyshev'      : k_chebyshev,
+        'n_bootstraps'     : n_bootstraps,
+        'std_est'          : std_est,
+        'mean'             : mean_,
+        'ub'               : ub,
+        'lb'               : lb
+    }
 
 
-def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
-    """
-    Return n such that with probability at least p, P(E[X] < \bar X_n + t).
-
-    Where \bar X_n is the mean of n samples.
-
-    Parameters
-    ----------
-    t : double
-        one sided confidence interval width
-    p : double
-        probability of bound holding
-    C : double
-        Width of sample support domain. E.g. 0.5 if all samples fall in
-            [0.5, 1.0]
-
-    Returns
-    -------
-
-    """
-    return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
-
-
-def chebyshev_k_from_upper_bound_prob(p_bound_holds:np.double) -> int:
-    """
-    Return k such with with probability at least p_bound_holds X will be < mu + k*sigma
-
-    Parameters
-    ----------
-    p_bound_holds : double
-
-    Returns
-    -------
-
-    """
-    p_bound_violated = 1 - p_bound_holds
-    return int(ceil(sqrt(1 / p_bound_violated)))
-
-
-def brugger_std_estimator(x:np.array) -> np.double:
+def brugger_std_estimator(x: np.array) -> np.double:
     """
     A standard deviation estimator that attempts to correct the bias of a
     regular n-1 DOF standard deviation estimator.
@@ -261,19 +233,22 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
         res[tri] = f(Xi, yi)
     return res
 
+
 try:
     import torch
+
 
     def asymptotic_curve_torch(X: np.ndarray, y: np.ndarray, d: int) -> np.double:
         mod = KNNConvergenceCurve(torch.from_numpy(X), torch.from_numpy(y), d)
         mod.fit_with_optimizer(n_iter=1500)
         return (mod.m.item(), mod.c.item())
 
+
     class KNNConvergenceCurve(torch.nn.Module):
-        def __init__(self,  x: torch.Tensor,
-                            y: torch.Tensor,
-                            d: int,
-                            print_to_console=False):
+        def __init__(self, x: torch.Tensor,
+                     y: torch.Tensor,
+                     d: int,
+                     print_to_console=False):
             super(KNNConvergenceCurve, self).__init__()
             self.m = torch.ones(1, requires_grad=True, dtype=torch.double)
             self.c = torch.ones(1, requires_grad=True, dtype=torch.double)

@@ -12,6 +12,7 @@ from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
 from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
 from experiment_framework.python_helpers import load_from
+from experiment_framework.calculations import accuracy_to_statistical_distance
 
 
 def ComputeConvergenceCurve(
@@ -88,18 +89,20 @@ class _ComputeConvergenceCurve(
     def run(self):
         _inputs = self.load_input_dict()
         tss = self._training_set_sizes
-        sd_matrix = np.empty(
+        accuracy_matrix = np.empty(
             (self.n_trials_per_training_set_size, self.n_steps))
 
         for training_set_size, trial in itertools.product(
                 tss,
                 range(self.n_trials_per_training_set_size)
                 ):
-            sd_matrix[trial, np.argwhere(tss == training_set_size)[0, 0]] = \
-                _inputs[_CP(trial, training_set_size)]['statistical_distance']
+            col = np.argwhere(tss == training_set_size)[0, 0]
+            accuracy_matrix[trial, col] = _inputs[_CP(trial, training_set_size)]['accuracy']
 
         with self.output().open('wb') as f:
-            dill.dump({'sd_matrix': sd_matrix, 'training_set_sizes': tss}, f, 2)
+            dill.dump({'accuracy_matrix': accuracy_matrix,
+                       'training_set_sizes':tss},
+                      f, 2)
 
 
 def EvaluateStatisticalDistance(samplegen: '_GenSamples',
@@ -148,13 +151,15 @@ class _EvaluateStatisticalDistance(
 
     def run(self):
         _input = self.load_input_dict()
-        sd = self.model.compute_classification_accuracy(
+        accuracy = self.model.compute_classification_accuracy(
             _input['model'],
             _input['samples_positive'],
             _input['samples_negative']
             )
+        sd = accuracy_to_statistical_distance(accuracy)
         with self.output().open('wb') as f:
-            dill.dump({'statistical_distance': sd}, f, 0)
+            dill.dump({'statistical_distance': sd,
+                       'accuracy': accuracy}, f, 0)
 
 
 def FitModel(gen_samples_type):

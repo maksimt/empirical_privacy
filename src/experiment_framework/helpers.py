@@ -128,7 +128,7 @@ def load_completed_CCCs_into_dataframe(
             with CCC.output().open() as f:
                 dat = dill.load(f)
             as_dict = _flatten_dict(CCC.param_kwargs)
-            S = dat['sd_matrix']
+            S = dat['accuracy_matrix']
             tss = dat['training_set_sizes']
             (ntri, nsamp) = S.shape
             for tri in range(ntri):
