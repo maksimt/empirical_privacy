@@ -31,8 +31,8 @@ def asymptotics_settings():
     # we use random tie-breaking since the samples are discrete
     'fitter_kwargs'      : {'neighbor_method': 'gyorfi'},
     'n_docs'                : 1,
-    'n_trials_per_training_set_size': 10,
-    'n_max'              : 2**12,
+    'n_trials_per_training_set_size': 5,
+    'n_max'              : 2**11,
     'validation_set_size': 2**11,
     'p'                  : 0.9,  # for bootstrap
     't'                  : 0.01  # for bootstrap

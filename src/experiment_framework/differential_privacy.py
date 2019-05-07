@@ -8,6 +8,7 @@ from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 from experiment_framework.luigi_target_mixins import (AutoLocalOutputMixin,
     LoadInputDictMixin, DeleteDepsRecursively)
 from experiment_framework.asymptotic_analysis import _ComputeAsymptoticAccuracy
+from experiment_framework.calculations import accuracy_to_statistical_distance
 
 
 class _ComputeLowerBoundForDelta(
@@ -42,8 +43,10 @@ class _ComputeLowerBoundForDelta(
     def run(self):
         _inputs = self.load_input_dict()
         statistical_distance = {
-            'lower_bound': _inputs['asymptotic_accuracy']['lower_bound'],
-            'upper_bound': _inputs['asymptotic_accuracy']['upper_bound'],
+            'lower_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy'][
+                                                                'lower_bound']),
+            'upper_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy'][
+                                                                'upper_bound']),
         }
         epsilon = self.claimed_epsilon
         delta = {
