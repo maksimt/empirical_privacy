@@ -43,10 +43,8 @@ class _ComputeLowerBoundForDelta(
     def run(self):
         _inputs = self.load_input_dict()
         statistical_distance = {
-            'lower_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy'][
-                                                                'lower_bound']),
-            'upper_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy'][
-                                                                'upper_bound']),
+            'lower_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy']['lower_bound']),
+            'upper_bound': accuracy_to_statistical_distance(_inputs['asymptotic_accuracy']['upper_bound']),
         }
         epsilon = self.claimed_epsilon
         delta = {
@@ -57,6 +55,11 @@ class _ComputeLowerBoundForDelta(
             dill.dump(delta, f)
 
 
+def compute_delta(stat_dist: float, epsilon: float):
+    """implements equation 3 from Yun's notes (Section ?? in the paper)"""
+    return exp(epsilon) * ( stat_dist - (1 - 1/exp(epsilon)) )
+
+
 def ComputeLowerBoundForDelta(asymptotic_accuracy_computer:
 _ComputeAsymptoticAccuracy) -> _ComputeLowerBoundForDelta:
     class T(_ComputeLowerBoundForDelta):
@@ -64,7 +67,3 @@ _ComputeAsymptoticAccuracy) -> _ComputeLowerBoundForDelta:
     T.asymptotic_accuracy_computer = asymptotic_accuracy_computer
 
     return T
-
-def compute_delta(stat_dist: float, epsilon: float):
-    """implements equation 3 from Yun's notes (Section ?? in the paper)"""
-    return exp(epsilon) * ( stat_dist - (1 - 1/exp(epsilon)) )
