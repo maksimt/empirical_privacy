@@ -3,11 +3,12 @@ import luigi
 import numpy as np
 import pytest
 
-from empirical_privacy.laplace_mechanism import GenSampleLaplaceMechanism
-from experiment_framework.sampling_framework import (GenSamples, FitModel,
-        EvaluateStatisticalDistance)
-from experiment_framework.privacy_estimator_mixins import KNNFitterMixin
-from experiment_framework import asymptotic_analysis
+
+from experiment_framework.sampling_framework import GenSamples
+from empirical_privacy.laplace_mechanism import (GenSampleLaplaceMechanism,
+    EvaluateKNNLaplaceStatDist)
+from experiment_framework.helpers import deltas_for_multiple_docs
+from experiment_framework.differential_privacy import _ComputeLowerBoundForDelta
 
 @pytest.fixture()
 def ds():
@@ -21,6 +22,24 @@ def ds():
 
 
 @pytest.fixture()
+def asymptotics_settings():
+    return {
+    'gen_sample_kwargs'  : {'generate_in_batch': True,
+                            'x_concatenator': 'numpy.vstack'
+                           },
+    'fitter'             : 'knn',
+    # we use random tie-breaking since the samples are discrete
+    'fitter_kwargs'      : {'neighbor_method': 'gyorfi'},
+    'n_docs'                : 1,
+    'n_trials_per_training_set_size': 10,
+    'n_max'              : 2**12,
+    'validation_set_size': 2**11,
+    'p'                  : 0.9,  # for bootstrap
+    't'                  : 0.01  # for bootstrap
+}
+
+
+@pytest.fixture()
 def gs(ds):
     gs = GenSampleLaplaceMechanism(
         dataset_settings=ds,
@@ -28,6 +47,16 @@ def gs(ds):
         random_seed='0'
         )
     return gs
+
+
+@pytest.fixture()
+def clbd(ds, asymptotics_settings) -> _ComputeLowerBoundForDelta:
+    CLBDs = deltas_for_multiple_docs(dataset_settings=ds,
+                                     GS=GenSampleLaplaceMechanism,
+                                     claimed_epsilon=0.1,
+                                     **asymptotics_settings)
+    CLBD = next(CLBDs)
+    return CLBD
 
 
 def test_gen_sample_laplace_constructor(gs):
@@ -76,21 +105,6 @@ def test_distinct_samples_generated(gen_positive_samples, gs):
 def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
                                                              ds):
 
-
-    class GenSamplesLaplace(GenSamples(type(gs),
-                                       x_concatenator=np.vstack,
-                                       generate_in_batch=True)):
-        pass
-
-    class FitKNNModelLaplace(KNNFitterMixin(), FitModel(GenSamplesLaplace)):
-        pass
-
-    class EvaluateKNNLaplaceStatDist(EvaluateStatisticalDistance(
-        samplegen=GenSamplesLaplace,
-        model=FitKNNModelLaplace
-        )):
-        pass
-
     ESD = EvaluateKNNLaplaceStatDist(training_set_size=2**12,
                                      validation_set_size=2**12,
                                      dataset_settings=ds,
@@ -108,3 +122,28 @@ def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
     expected_accuracy = 0.5 + 0.5 * gs.probability_of_alternative_sample
 
     assert expected_accuracy - 0.03 <= accuracy <= expected_accuracy + 0.03
+
+
+def delta_for_claimed_epsilon(clbd, claimed_epsilon):
+    params = clbd.param_kwargs
+    params['claimed_epsilon'] = claimed_epsilon
+    new_clbd = type(clbd)(**params)
+    luigi.build([new_clbd], log_level='ERROR', local_scheduler=True)
+    with new_clbd.output().open() as f:
+        delta = dill.load(f)
+    return delta
+
+
+def test_delta_with_claimed_epsilon_too_low(ds, clbd):
+    delta = delta_for_claimed_epsilon(clbd, ds['epsilon']/2)
+    assert delta['lower_bound'] > 0
+
+
+def test_delta_with_claimed_epsilon_too_high(ds, clbd):
+    delta = delta_for_claimed_epsilon(clbd, ds['epsilon']*2)
+    assert delta['upper_bound'] < 0
+
+
+def test_delta_with_claimed_epsilon_just_right(ds, clbd):
+    delta = delta_for_claimed_epsilon(clbd, ds['epsilon'])
+    assert delta['lower_bound'] < 0 < delta['upper_bound']

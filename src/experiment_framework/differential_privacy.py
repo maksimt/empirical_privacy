@@ -18,6 +18,8 @@ class _ComputeLowerBoundForDelta(
     ABC
 ):
 
+    claimed_epsilon = luigi.FloatParameter()
+
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
     dataset_settings = luigi.DictParameter()
@@ -28,13 +30,14 @@ class _ComputeLowerBoundForDelta(
     def requires(self):
         reqs = {}
         reqs['asymptotic_accuracy'] = self.asymptotic_accuracy_computer(
-            n_trials_per_trainingset_size = self.n_trials_per_training_set_size,
+            n_trials_per_training_set_size = self.n_trials_per_training_set_size,
             n_max = self.n_max,
             dataset_settings = self.dataset_settings,
             validation_set_size = self.validation_set_size,
             confidence_interval_width = self.confidence_interval_width,
             confidence_interval_prob = self.confidence_interval_prob
         )
+        return reqs
 
     def run(self):
         _inputs = self.load_input_dict()
@@ -42,7 +45,7 @@ class _ComputeLowerBoundForDelta(
             'lower_bound': _inputs['asymptotic_accuracy']['lower_bound'],
             'upper_bound': _inputs['asymptotic_accuracy']['upper_bound'],
         }
-        epsilon = self.dataset_settings['epsilon']
+        epsilon = self.claimed_epsilon
         delta = {
             bound_name: compute_delta(stat_dist=sd, epsilon=epsilon) for
                 bound_name, sd in statistical_distance.items()
@@ -53,8 +56,9 @@ class _ComputeLowerBoundForDelta(
 
 def ComputeLowerBoundForDelta(asymptotic_accuracy_computer:
 _ComputeAsymptoticAccuracy) -> _ComputeLowerBoundForDelta:
-    class T(_ComputeAsymptoticAccuracy):
-        asymptotic_accuracy_computer = asymptotic_accuracy_computer
+    class T(_ComputeLowerBoundForDelta):
+        pass
+    T.asymptotic_accuracy_computer = asymptotic_accuracy_computer
 
     return T
 

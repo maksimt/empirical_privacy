@@ -15,6 +15,22 @@ from experiment_framework.sampling_framework import GenSample, GenSamples, FitMo
     _ComputeConvergenceCurve
 from experiment_framework.asymptotic_analysis import \
     ComputeAsymptoticAccuracy, _ComputeAsymptoticAccuracy
+from experiment_framework.differential_privacy import ComputeLowerBoundForDelta
+
+
+def deltas_for_multiple_docs(
+        *args,
+        claimed_epsilon: float,
+        **kwargs
+):
+    AAs = asymptotics_for_multiple_docs(*args, **kwargs)
+
+    class CLBDType(ComputeLowerBoundForDelta(type(AAs[0]))):
+        pass
+
+    for AA in AAs:
+        yield CLBDType(claimed_epsilon=claimed_epsilon,
+                       **AA.param_kwargs)
 
 
 class AllAsymptotics(luigi.WrapperTask):

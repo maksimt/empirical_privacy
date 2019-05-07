@@ -2,7 +2,9 @@ from math import exp
 
 import numpy as np
 
-from experiment_framework.sampling_framework import GenSample
+from experiment_framework.sampling_framework import (GenSample, GenSamples,
+     FitModel, EvaluateStatisticalDistance)
+from experiment_framework.privacy_estimator_mixins import KNNFitterMixin
 
 
 class GenSampleLaplaceMechanism(GenSample):
@@ -66,3 +68,17 @@ class GenSampleLaplaceMechanism(GenSample):
             Xh = X + self.alternative_sample_noise
 
         return Xh, y
+
+class GenSamplesLaplace(GenSamples(GenSampleLaplaceMechanism,
+                                   x_concatenator=np.vstack,
+                                   generate_in_batch=True)):
+    pass
+
+class FitKNNModelLaplace(KNNFitterMixin(), FitModel(GenSamplesLaplace)):
+    pass
+
+class EvaluateKNNLaplaceStatDist(EvaluateStatisticalDistance(
+    samplegen=GenSamplesLaplace,
+    model=FitKNNModelLaplace
+    )):
+    pass
