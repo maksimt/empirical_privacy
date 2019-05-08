@@ -31,7 +31,7 @@ class AllDeltas(luigi.WrapperTask):
             dataset_settings=dict(self.dataset_settings),
             GS=GS,
             claimed_epsilon=self.claimed_epsilon,
-            **self.asymptotics_settings)
+            **self.asymptotic_settings)
         return list(CLBDs)
 
 
