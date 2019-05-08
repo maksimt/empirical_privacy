@@ -1,21 +1,38 @@
-import dill
 import copy
 import logging
 from pprint import pformat
 from typing import Sequence
 
+import dill
 import luigi
 import pandas as pd
 
+from experiment_framework.asymptotic_analysis import \
+    ComputeAsymptoticAccuracy, _ComputeAsymptoticAccuracy
+from experiment_framework.differential_privacy import ComputeLowerBoundForDelta
 from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin, \
     ExpectationFitterMixin, KNNFitterMixin
 from experiment_framework.python_helpers import load_from, _flatten_dict
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve, \
     _ComputeConvergenceCurve
-from experiment_framework.asymptotic_analysis import \
-    ComputeAsymptoticAccuracy, _ComputeAsymptoticAccuracy
-from experiment_framework.differential_privacy import ComputeLowerBoundForDelta
+
+
+class AllDeltas(luigi.WrapperTask):
+    gen_sample_path = luigi.Parameter()
+    dataset_settings = luigi.DictParameter()
+    asymptotic_settings = luigi.DictParameter(default={})
+    claimed_epsilon = luigi.FloatParameter()
+
+    def requires(self):
+        GS = load_from(self.gen_sample_path)
+        # dict() so we can modify it without getting FrozenDict violations
+        CLBDs = deltas_for_multiple_docs(
+            dataset_settings=dict(self.dataset_settings),
+            GS=GS,
+            claimed_epsilon=self.claimed_epsilon,
+            **self.asymptotics_settings)
+        return list(CLBDs)
 
 
 def deltas_for_multiple_docs(
@@ -50,18 +67,18 @@ class AllAsymptotics(luigi.WrapperTask):
 
 
 def asymptotics_for_multiple_docs(
-        dataset_settings : dict,
-        GS : GenSample,
-        gen_sample_kwargs = {'generate_in_batch': True},
-        fitter_kwargs = {},
-        fitter = 'knn',
+        dataset_settings: dict,
+        GS: GenSample,
+        gen_sample_kwargs={'generate_in_batch': True},
+        fitter_kwargs={},
+        fitter='knn',
         t=0.01,
         p=0.99,
         n_docs=10,
         n_trials_per_training_set_size=10,
         validation_set_size=64,
         n_max=256,
-    ):
+):
     if 'doc_ind' in dataset_settings:
         logging.warning('doc_ind is overwritten; if you need granular control'
                         'consider building the AsymptoticAnalysis classes by '
@@ -84,7 +101,7 @@ def asymptotics_for_multiple_docs(
             n_max=n_max,
             dataset_settings=ds,
             validation_set_size=validation_set_size
-            )
+        )
         )
     return AAs
 
@@ -99,7 +116,7 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
     if fitter_kwargs is None:
         fitter_kwargs = {}
         if fitter is not 'knn':
-            fitter_kwargs = {'statistic_column':0}
+            fitter_kwargs = {'statistic_column': 0}
 
     class GSs(GenSamples(GenSampleType, **gensample_kwargs)):
         pass
@@ -137,7 +154,7 @@ def build_convergence_curve_pipeline(GenSampleType: GenSample,
 
 def load_completed_CCCs_into_dataframe(
         CCCs: Sequence[_ComputeConvergenceCurve]
-    ):
+):
     res = []
     for CCC in CCCs:
         if CCC.complete():
@@ -157,9 +174,10 @@ def load_completed_CCCs_into_dataframe(
     DF = pd.DataFrame.from_dict(res)
     return DF
 
+
 def load_completed_AAs_into_dataframe(
         AAs: Sequence[_ComputeAsymptoticAccuracy]
-    ):
+):
     res = []
     for AA in AAs:
         if not AA.complete():

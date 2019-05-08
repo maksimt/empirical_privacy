@@ -14,7 +14,7 @@ from experiment_framework.differential_privacy import _ComputeLowerBoundForDelta
 def ds():
     return {
         'database_0' : (0, 0, 0),
-        'database_1' : (0, 0, 0),
+        'database_1' : (1, 0, 0),
         'sensitivity': 1.,
         'epsilon'    : 1.,
         'delta'      : 0.
