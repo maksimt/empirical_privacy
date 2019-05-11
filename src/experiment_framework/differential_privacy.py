@@ -30,11 +30,12 @@ class _ComputeLowerBoundForDelta(
 
     def requires(self):
         reqs = {}
-        self.dataset_settings['claimed_epsilon'] = self.claimed_epsilon
+        dataset_settings = dict(self.dataset_settings)
+        dataset_settings['claimed_epsilon'] = self.claimed_epsilon
         reqs['asymptotic_accuracy'] = self.asymptotic_accuracy_computer(
             n_trials_per_training_set_size = self.n_trials_per_training_set_size,
             n_max = self.n_max,
-            dataset_settings = self.dataset_settings,
+            dataset_settings = dataset_settings,
             validation_set_size = self.validation_set_size,
             confidence_interval_width = self.confidence_interval_width,
             confidence_interval_prob = self.confidence_interval_prob
