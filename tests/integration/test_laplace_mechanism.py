@@ -16,7 +16,7 @@ def ds():
         'database_0' : (0, 0, 0),
         'database_1' : (1, 0, 0),
         'sensitivity': 1.,
-        'epsilon'    : 1.,
+        'epsilon'    : 0.1,
         'delta'      : 0.
     }
 
