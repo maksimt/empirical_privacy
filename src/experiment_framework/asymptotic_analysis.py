@@ -10,6 +10,7 @@ from sklearn.utils import resample
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 from experiment_framework.calculations import (
+    hoeffding_n_given_t_and_p_one_sided,
     hoeffding_n_given_t_and_p_two_sided,
     chebyshev_k_from_upper_bound_prob,
 )
@@ -33,6 +34,7 @@ class _ComputeAsymptoticAccuracy(
 
     confidence_interval_width = luigi.FloatParameter(default=0.01)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
+    confidence_interval_type = luigi.Parameter(default='one_sided')
 
     def requires(self):
         reqs = {}
@@ -79,7 +81,9 @@ class _ComputeAsymptoticAccuracy(
         res = compute_bootstrapped_upper_bound(
             X=X, y=y, d=d, fit_model=fit_model,
             confidence_interval_prob=self.confidence_interval_prob,
-            confidence_interval_width=self.confidence_interval_width)
+            confidence_interval_width=self.confidence_interval_width,
+            confidence_interval_type=self.confidence_interval_type
+        )
 
         rtv = {
             'mean'        : np.mean(res['bootstrap_samples']),
@@ -107,12 +111,19 @@ def ComputeAsymptoticAccuracy(
 
 def compute_bootstrapped_upper_bound(X, d, fit_model, y,
                                      confidence_interval_prob,
-                                     confidence_interval_width):
+                                     confidence_interval_width,
+                                     confidence_interval_type='two_sided'):
     p_sqrt = sqrt(confidence_interval_prob)
-    n_bootstraps = hoeffding_n_given_t_and_p_two_sided(
-        t=confidence_interval_width,
-        p=p_sqrt
-    )
+    if confidence_interval_type == 'two_sided':
+        n_bootstraps = hoeffding_n_given_t_and_p_two_sided(
+            t=confidence_interval_width,
+            p=p_sqrt
+        )
+    elif confidence_interval_type == 'one_sided':
+        n_bootstraps = hoeffding_n_given_t_and_p_one_sided(
+            t=confidence_interval_width,
+            p=p_sqrt
+        )
     k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
     bootstrap_samples = bootstrap_ci(
         n_bootstraps,
