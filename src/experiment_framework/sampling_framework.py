@@ -282,7 +282,8 @@ class _GenSamples(
             samples = []
             n_to_make = self.num_samples - self.n_prev + 1
             for sn in range(self.n_prev, self.num_samples):
-                self.set_progress_percentage(100*(sn-self.n_prev)/n_to_make)
+                # set_progress_percentage is a blocking network IO operation... lol
+                # self.set_progress_percentage(100*(sn-self.n_prev)/n_to_make)
                 samples.append(f_GS(sample_number=sn))
         X, y = zip(*samples)
         if prev['X'] is not None:
