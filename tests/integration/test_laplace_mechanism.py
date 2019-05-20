@@ -16,8 +16,9 @@ def ds():
         'database_0' : (0, 0, 0),
         'database_1' : (1, 0, 0),
         'sensitivity': 1.,
-        'epsilon'    : 0.1,
-        'delta'      : 0.
+        'epsilon'    : 1.0,
+        'delta'      : 0.,
+        'claimed_epsilon': 1.0
     }
 
 
@@ -87,7 +88,8 @@ def test_distinct_samples_generated(gen_positive_samples, gs):
             'database_1' : (1, 0, 0),
             'sensitivity': 1.,
             'epsilon'    : 0.1,
-            'delta'      : 0
+            'delta'      : 0,
+            'claimed_epsilon': 0.1
             },
         random_seed='0'
         )
@@ -127,6 +129,8 @@ def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
 def delta_for_claimed_epsilon(clbd, claimed_epsilon):
     params = clbd.param_kwargs
     params['claimed_epsilon'] = claimed_epsilon
+    params['dataset_settings'] = dict(params['dataset_settings'])
+    params['dataset_settings']['claimed_epsilon'] = claimed_epsilon
     new_clbd = type(clbd)(**params)
     luigi.build([new_clbd], log_level='ERROR', local_scheduler=True)
     with new_clbd.output().open() as f:
