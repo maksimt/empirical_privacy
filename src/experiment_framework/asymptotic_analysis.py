@@ -205,7 +205,8 @@ def asymptotic_curve(X, y):
 
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
-                 f: typing.Callable[[np.ndarray, np.ndarray, int], np.double]) \
+                 f: typing.Callable[[np.ndarray, np.ndarray, int], np.double],
+                 random_state_offset=0) \
         -> np.ndarray:
     """
     Perform block bootstrap row-wise and then reshape into 1-dim arrays
@@ -220,6 +221,7 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
     X :
     y :
     f :
+    random_state_offset : int added to random state before setting the seed.
 
     Returns
     -------
@@ -227,7 +229,7 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
     """
     res = np.empty((n_samples,))
     for tri in range(n_samples):
-        Xi, yi = resample(X, y, random_state=tri)
+        Xi, yi = resample(X, y, random_state=tri + random_state_offset)
         Xi = Xi.reshape(Xi.size)
         yi = yi.reshape(yi.size)
         res[tri] = f(Xi, yi)
