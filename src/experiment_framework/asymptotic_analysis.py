@@ -1,6 +1,5 @@
 import typing
 from abc import ABC
-from functools import partial
 from math import sqrt
 
 import dill
@@ -9,10 +8,6 @@ import numpy as np
 from sklearn.utils import resample
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
-from experiment_framework.calculations import (
-    hoeffding_n_given_t_and_p_two_sided,
-    chebyshev_k_from_upper_bound_prob,
-)
 from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
 from experiment_framework.privacy_estimator_mixins import get_k
@@ -31,7 +26,7 @@ class _ComputeAsymptoticAccuracy(
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=2 ** 10)
 
-    confidence_interval_width = luigi.FloatParameter(default=0.01)
+    n_bootstraps = luigi.IntParameter(default=100)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
 
     def requires(self):
@@ -76,21 +71,17 @@ class _ComputeAsymptoticAccuracy(
             assert d >= 3, 'The gyorfi convergence rate is only guaranteed to ' \
                            'hold when d>=3, but d={}.'.format(d)
 
-        res = compute_bootstrapped_upper_bound(
-            X=X, y=y, d=d, fit_model=fit_model,
+        rtv = empirical_bootstrap_bounds(
+            training_set_sizes=X,
+            classifier_accuracies=y,
+            d=d,
+            fit_model=fit_model,
             confidence_interval_prob=self.confidence_interval_prob,
-            confidence_interval_width=self.confidence_interval_width)
+            n_bootstraps=self.n_bootstraps
+        )
 
-        rtv = {
-            'mean'        : np.mean(res['bootstrap_samples']),
-            'median'      : np.median(res['bootstrap_samples']),
-            'std'         : res['std_est'],
-            'n_bootstraps': res['n_bootstraps'],
-            'p'           : self.confidence_interval_prob,
-            'k_chebyshev' : res['k_chebyshev']
-        }
-        rtv['upper_bound'] = res['ub']
-        rtv['lower_bound'] = res['lb']
+        rtv['upper_bound'] = rtv['ub_two_sided']
+        rtv['lower_bound'] = rtv['lb_two_sided']
         with self.output().open('wb') as f:
             dill.dump(rtv, f)
 
@@ -105,103 +96,76 @@ def ComputeAsymptoticAccuracy(
     return T
 
 
-def compute_bootstrapped_upper_bound(X, d, fit_model, y,
-                                     confidence_interval_prob,
-                                     confidence_interval_width):
-    p_sqrt = sqrt(confidence_interval_prob)
-    n_bootstraps = hoeffding_n_given_t_and_p_two_sided(
-        t=confidence_interval_width,
-        p=p_sqrt
-    )
-    k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
-    bootstrap_samples = bootstrap_ci(
-        n_bootstraps,
-        X=X,
-        y=y,
-        f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
-    )
-    bootstrap_samples = np.array(bootstrap_samples)
-    std_est = brugger_std_estimator(bootstrap_samples)
-    # from hoeffding UB + chebyshev UB
-    bound_whisker = + confidence_interval_width + k_chebyshev * std_est
-    mean_ = np.mean(bootstrap_samples)
-    ub = mean_ + bound_whisker
-    lb = mean_ - bound_whisker
+def empirical_bootstrap_bounds(training_set_sizes,
+                               d,
+                               fit_model,
+                               classifier_accuracies,
+                               confidence_interval_prob,
+                               n_bootstraps):
+
+    k_nearest_neighbors = transform_n_to_k_for_knn(Ns=training_set_sizes,
+                                                   fit_model=fit_model,
+                                                   d=d)
+    classifier_accuracies[classifier_accuracies < 0.5] = 0.5
+    # If the classifier is worse than random, the adversary would just guess randomly.
+    # This accuracy is a lower bound for the random guess, when priors are
+    # 0.5 each. If one class had a larger prior we'd always guess that class.
+    sample_mean = asymptotic_privacy_lr(k_nearest_neighbors,
+                                        classifier_accuracies)
+
+    delta_means = bootstrap_deltas(classifier_accuracies,
+                                   k_nearest_neighbors,
+                                   n_bootstraps,
+                                   sample_mean,
+                                   sample_size=training_set_sizes.shape[0])
+
+    one_sided_error_percentage = (1-confidence_interval_prob) * 100
+    two_sided_error_percentage = (1-confidence_interval_prob)/2 * 100
+
+    # eg if confidence_inrvela_prob = 0.9
+    # error percentage is 0.1
+    # P(mu >= x - d_0.9) >= 0.9
+    lb_one_sided = sample_mean - np.percentile(delta_means,
+                                               q=100-one_sided_error_percentage,
+                                               interpolation='higher')
+    # P(mu <= x - d_0.1) >= 0.9
+    # error percentage is 0.1
+    ub_one_sided = sample_mean - np.percentile(delta_means,
+                                               q=one_sided_error_percentage,
+                                               interpolation='lower')
+
+    lb_two_sided = sample_mean - np.percentile(delta_means,
+                                               q=100 - two_sided_error_percentage,
+                                               interpolation='higher')
+    ub_two_sided = sample_mean - np.percentile(delta_means,
+                                               q=two_sided_error_percentage,
+                                               interpolation='lower')
 
     return {
-        'bootstrap_samples': bootstrap_samples,
-        'k_chebyshev'      : k_chebyshev,
-        'n_bootstraps'     : n_bootstraps,
-        'std_est'          : std_est,
-        'mean'             : mean_,
-        'ub'               : ub,
-        'lb'               : lb
+        'delta_means' : delta_means,
+        'n_bootstraps': n_bootstraps,
+        'mean'        : sample_mean,
+        'lb_one_sided': lb_one_sided,
+        'ub_one_sided': ub_one_sided,
+        'lb_two_sided': lb_two_sided,
+        'ub_two_sided': ub_two_sided
     }
 
 
-def brugger_std_estimator(x: np.array) -> np.double:
-    """
-    A standard deviation estimator that attempts to correct the bias of a
-    regular n-1 DOF standard deviation estimator.
-
-    Assumes data is normally distributed. This is a reasonable assumption for us
-    since each data point is the classifier accuracy, which is a function of
-    the sum of many iid classification decisions.
-
-    Parameters
-    ----------
-    x : np.array
-
-    Returns
-    -------
-
-    """
-    n = x.size
-    mu = np.mean(x)
-    left_factor = 1 / (n - 1.5)
-    right_factor = np.sum((x - mu) ** 2)
-    return sqrt(left_factor * right_factor)
-
-
-def asymptotic_privacy_lr(training_set_sizes,
-                          classifier_accuracies,
-                          fit_model, d=None):
-    classifier_accuracies[classifier_accuracies < 0.5] = 0.5  # if the
-    # classifier is worse than random, the adversary would just guess randomly
-    # this accuracy is a lower bound for the random guess, when priors are
-    # 0.5 each. If one class had a larger prior we'd always guess that class.
-    Ks = transform_n_to_k_for_knn(Ns=training_set_sizes,
-                                  fit_model=fit_model,
-                                  d=d)
-    b = asymptotic_curve(Ks, classifier_accuracies)
-    return b[0]
-
-
-def transform_n_to_k_for_knn(Ns, fit_model, d=None):
-    if fit_model == 'gyorfi':
-        rtv = [-1.0 / get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
-    elif 'sqrt' in fit_model:
-        rtv = [-1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
-    return np.array(rtv)
-
-
-def asymptotic_curve(X, y):
-    """
-    y ~ b[0] + b[1]*X
-
-    Parameters
-    ----------
-    X :
-    y :
-
-    Returns
-    -------
-    """
-    n = X.size
-    A = np.ones((n, 2))
-    A[:, 1] = X
-    fit = np.linalg.lstsq(A, y)
-    return fit[0]
+def bootstrap_deltas(classifier_accuracies, k_nearest_neighbors, n_bootstraps, sample_mean,
+                     sample_size):
+    delta_means = np.empty((n_bootstraps,))
+    for i in range(n_bootstraps):
+        bootstrap_samples = bootstrap_ci(
+            n_samples=sample_size,
+            X=k_nearest_neighbors,
+            y=classifier_accuracies,
+            f=asymptotic_privacy_lr,
+            random_state_offset=sample_size * i
+        )
+        bootstrap_mean = np.mean(bootstrap_samples)
+        delta_means[i] = bootstrap_mean - sample_mean
+    return delta_means
 
 
 def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
@@ -230,10 +194,48 @@ def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
     res = np.empty((n_samples,))
     for tri in range(n_samples):
         Xi, yi = resample(X, y, random_state=tri + random_state_offset)
-        Xi = Xi.reshape(Xi.size)
-        yi = yi.reshape(yi.size)
         res[tri] = f(Xi, yi)
     return res
+
+
+def asymptotic_privacy_lr(k_nearest_neighbors,
+                          classifier_accuracies):
+    k_nearest_neighbors = k_nearest_neighbors.reshape(k_nearest_neighbors.size)
+    classifier_accuracies = classifier_accuracies.reshape(classifier_accuracies.size)
+    b = asymptotic_curve(k_nearest_neighbors, classifier_accuracies)
+    return b[0]  # b=[m, C]
+
+
+def asymptotic_curve(X, y):
+    """
+    y ~ b[0] + b[1]*X
+
+    Parameters
+    ----------
+    X :
+    y :
+
+    Returns
+    -------
+    """
+    n = X.size
+    A = np.ones((n, 2))
+    A[:, 1] = X
+    fit = np.linalg.lstsq(A, y)
+    return fit[0]
+
+
+def transform_n_to_k_for_knn(Ns, fit_model, d=None):
+    if Ns.ndim > 1:
+        for i in range(Ns.shape[0]):
+            Ns[i, :]  = transform_n_to_k_for_knn(Ns[i], fit_model, d)
+        return Ns
+
+    if fit_model == 'gyorfi':
+        rtv = [-1.0 / get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
+    elif 'sqrt' in fit_model:
+        rtv = [-1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
+    return np.array(rtv)
 
 
 try:

@@ -72,7 +72,7 @@ def asymptotics_for_multiple_docs(
         gen_sample_kwargs={'generate_in_batch': True},
         fitter_kwargs={},
         fitter='knn',
-        t=0.01,
+        n_bootstraps=100,
         p=0.99,
         n_docs=10,
         n_trials_per_training_set_size=10,
@@ -95,7 +95,7 @@ def asymptotics_for_multiple_docs(
         ds = copy.deepcopy(dataset_settings)
         ds['doc_ind'] = doc_i
         AAs.append(AAType(
-            confidence_interval_width=t,
+            n_bootstraps=n_bootstraps,
             confidence_interval_prob=p,
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,

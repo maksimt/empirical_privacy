@@ -25,7 +25,7 @@ class _ComputeLowerBoundForDelta(
     n_max = luigi.IntParameter()
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=2 ** 10)
-    confidence_interval_width = luigi.FloatParameter(default=0.01)
+    n_bootstraps = luigi.IntParameter(default=100)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
 
     def requires(self):
@@ -37,7 +37,7 @@ class _ComputeLowerBoundForDelta(
             n_max = self.n_max,
             dataset_settings = dataset_settings,
             validation_set_size = self.validation_set_size,
-            confidence_interval_width = self.confidence_interval_width,
+            n_bootstraps = self.n_bootstraps,
             confidence_interval_prob = self.confidence_interval_prob
         )
         return reqs
@@ -53,6 +53,7 @@ class _ComputeLowerBoundForDelta(
             bound_name: compute_delta(stat_dist=sd, epsilon=epsilon) for
                 bound_name, sd in statistical_distance.items()
         }
+        import pdb; pdb.set_trace()
         with self.output().open('wb') as f:
             dill.dump(delta, f)
 

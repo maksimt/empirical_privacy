@@ -1,13 +1,13 @@
 import pytest
 import numpy as np
 
-from experiment_framework.asymptotic_analysis import compute_bootstrapped_upper_bound
+from experiment_framework.asymptotic_analysis import empirical_bootstrap_bounds
 
 import numpy as np
 import pytest
 
 from experiment_framework.asymptotic_analysis import \
-    compute_bootstrapped_upper_bound
+    empirical_bootstrap_bounds
 
 
 def y_shape():
@@ -26,7 +26,7 @@ def X():
     tss = np.logspace(3, 3+ntss, num=ntss, base=2)
     X = np.tile(tss,
                 (ntri, 1))
-    X = X.astype(np.double)
+    X = X.astype(np.int)
     return X
 
 @pytest.mark.parametrize('d',[
@@ -39,14 +39,15 @@ def X():
     'sqrt'
 ])
 def test_boot_strap(X, y, fit_model, d):
-    res = compute_bootstrapped_upper_bound(
-        X=X,
-        d=3,
+    res = empirical_bootstrap_bounds(
+        training_set_sizes=X,
+        d=d,
         fit_model=fit_model,
-        y=y,
-        confidence_interval_width=0.1,
+        classifier_accuracies=y,
+        n_bootstraps=10,
         confidence_interval_prob=0.75
     )
     assert res['n_bootstraps'] >= 10
-    assert res['k_chebyshev'] >= 3
-    assert res['ub'] >= 0.6
+    assert res['lb_two_sided'] <= res['ub_two_sided']
+    assert res['lb_two_sided'] <= res['lb_one_sided']
+    assert res['ub_one_sided'] <= res['ub_two_sided']

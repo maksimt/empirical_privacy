@@ -80,7 +80,7 @@ def test_asymptotic_accuracy():
     t = 0.01
     AA = AsymptoticAnalysisSVD(
         **ccc_kwargs,
-        confidence_interval_width=t,
+        n_bootstraps=100,
         confidence_interval_prob=0.99
     )
     luigi.build([AA], local_scheduler=True, workers=8, log_level='WARNING')
