@@ -53,7 +53,6 @@ class _ComputeLowerBoundForDelta(
             bound_name: compute_delta(stat_dist=sd, epsilon=epsilon) for
                 bound_name, sd in statistical_distance.items()
         }
-        import pdb; pdb.set_trace()
         with self.output().open('wb') as f:
             dill.dump(delta, f)
 
