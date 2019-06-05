@@ -39,7 +39,7 @@ def asymptotics_settings():
         'n_max'                         : 2 ** 11,
         'validation_set_size'           : 2 ** 11,
         'p'                             : 0.9,  # for bootstrap
-        'n_bootstraps'                  : 200  # for bootstrap
+        'n_bootstraps'                  : 1000  # for bootstrap
     }
 
 

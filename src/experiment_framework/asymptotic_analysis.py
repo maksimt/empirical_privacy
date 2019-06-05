@@ -227,9 +227,10 @@ def asymptotic_curve(X, y):
 
 def transform_n_to_k_for_knn(Ns, fit_model, d=None):
     if Ns.ndim > 1:
+        rtv = np.empty_like(Ns)
         for i in range(Ns.shape[0]):
-            Ns[i, :]  = transform_n_to_k_for_knn(Ns[i], fit_model, d)
-        return Ns
+            rtv[i, :]  = transform_n_to_k_for_knn(Ns[i], fit_model, d)
+        return rtv
 
     if fit_model == 'gyorfi':
         rtv = [-1.0 / get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
