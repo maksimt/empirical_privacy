@@ -36,4 +36,4 @@ def test_asymptotic_generator(neighbor_method):
     AA = All.requires()[0]
     with AA.output().open() as f:
         res = dill.load(f)
-    assert 'mean' in res and 'upper_bound' in res
+    assert 'upper_bound' in res
