@@ -68,16 +68,5 @@ class SampleGenerator:
         return np.mean(data)
 
     def new_bootstrap_sample(self):
-        data = resample(*self.data, random_state=self._random_state)
+        data = resample(self.data, random_state=self._random_state)
         return data
-
-
-class TransformingSampleGenerator(SampleGenerator):
-    def __init__(self, data, transform, seed=0):
-        super().__init__(data, seed)
-        self.transform = transform
-        self.sample_mean = self.transform(self.data)
-
-    def new_bootstrap_mean(self):
-        data = self.new_bootstrap_sample()
-        return np.mean(self.transform(data))

@@ -7,7 +7,7 @@ import numpy as np
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 from experiment_framework.empirical_bootstrap import (
     EmpiricalBootstrap,
-    TransformingSampleGenerator
+    SampleGenerator
 )
 from experiment_framework.luigi_target_mixins import (
     AutoLocalOutputMixin,
@@ -108,13 +108,10 @@ def construct_bootstrap(X, d, fit_model, classifier_accuracies):
         Ns=X, fit_model=fit_model, d=d
     )
     classifier_accuracies[classifier_accuracies < 0.5] = 0.5
-    sample_gen = TransformingSampleGenerator(
-        data=(k_nearest_neighbors, classifier_accuracies),
-        transform=asymptotic_privacy_lr
-    )
-    return EmpiricalBootstrap(
-        sample_generator=sample_gen
-    )
+    data = np.array([asymptotic_privacy_lr([ks, accus])
+                     for ks, accus in zip(k_nearest_neighbors, classifier_accuracies)])
+    sample_gen = SampleGenerator(data=data)
+    return EmpiricalBootstrap(sample_generator=sample_gen)
 
 
 def asymptotic_privacy_lr(input_):
@@ -152,7 +149,7 @@ def transform_n_to_k_for_knn(Ns, fit_model, d=None):
         return rtv
 
     if fit_model == "gyorfi":
-        rtv = [-1.0 / get_k(method="gyorfi", num_samples=x, d=d) for x in Ns]
+        rtv = [-1.0 / x**(2/(d+2)) for x in Ns]
     elif "sqrt" in fit_model:
         rtv = [-1.0 / get_k(method="sqrt", num_samples=x) for x in Ns]
     return np.array(rtv)
