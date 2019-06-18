@@ -27,7 +27,7 @@ def X():
     return X
 
 
-@pytest.mark.parametrize('random_seed', range(10))
+@pytest.mark.parametrize('random_seed', range(3))
 @pytest.mark.parametrize('bootstrap_size', [100, 1000])
 @pytest.mark.parametrize('confidence_interval_probability', [0.9, 0.99])
 def test_confidence_interval_bounds(random_seed,
@@ -45,7 +45,7 @@ def test_confidence_interval_bounds(random_seed,
     assert rtv.ub_one_sided <= rtv.ub_two_sided
 
 
-@pytest.mark.parametrize('random_seed', range(10))
+@pytest.mark.parametrize('random_seed', range(3))
 @pytest.mark.parametrize('bootstrap_size', [100, 1000])
 @pytest.mark.parametrize('confidence_interval_probability', [0.9, 0.99])
 def test_bootstrap_implementation(random_seed,

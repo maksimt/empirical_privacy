@@ -60,16 +60,15 @@ class EmpiricalBootstrap:
 class SampleGenerator:
     def __init__(self, data, seed=0):
         self.data = data
-        self.seed = seed
         self.sample_mean = np.mean(self.data)
+        self._random_state = np.random.RandomState(seed)
 
     def new_bootstrap_mean(self):
         data = self.new_bootstrap_sample()
         return np.mean(data)
 
     def new_bootstrap_sample(self):
-        data = resample(self.data, random_state=self.seed)
-        self.seed += 1
+        data = resample(self.data, random_state=self._random_state)
         return data
 
 
