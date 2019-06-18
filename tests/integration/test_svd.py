@@ -37,7 +37,7 @@ def test_CCC(ccc_kwargs):
                 log_level='ERROR')
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
-    assert res['sd_matrix'].shape == (3,2)
+    assert res['accuracy_matrix'].shape == (3,2)
 
 @pytest.mark.parametrize('ccc_kwargs', ['hidden_eigs'], indirect=['ccc_kwargs'])
 def test_GS_20ng(ccc_kwargs):
@@ -61,7 +61,7 @@ def test_full_view_samples(ccc_kwargs):
                 log_level='ERROR')
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
-    assert res['sd_matrix'].shape == (3, 2)
+    assert res['accuracy_matrix'].shape == (3, 2)
 
 def test_asymptotic_accuracy():
     ds = {
@@ -80,7 +80,7 @@ def test_asymptotic_accuracy():
     t = 0.01
     AA = AsymptoticAnalysisSVD(
         **ccc_kwargs,
-        confidence_interval_width=t,
+        n_bootstraps=100,
         confidence_interval_prob=0.99
     )
     luigi.build([AA], local_scheduler=True, workers=8, log_level='WARNING')

@@ -1,18 +1,21 @@
-from math import ceil, sqrt
-import typing
 from abc import ABC
-from functools import partial
 
 import dill
 import luigi
 import numpy as np
-from sklearn.utils import resample
 
-from experiment_framework.sampling_framework import ComputeConvergenceCurve
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
-from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
-    LoadInputDictMixin, DeleteDepsRecursively
+from experiment_framework.empirical_bootstrap import (
+    EmpiricalBootstrap,
+    TransformingSampleGenerator
+)
+from experiment_framework.luigi_target_mixins import (
+    AutoLocalOutputMixin,
+    LoadInputDictMixin,
+    DeleteDepsRecursively,
+)
 from experiment_framework.privacy_estimator_mixins import get_k
+from experiment_framework.sampling_framework import ComputeConvergenceCurve
 
 
 class _ComputeAsymptoticAccuracy(
@@ -20,197 +23,106 @@ class _ComputeAsymptoticAccuracy(
     LoadInputDictMixin,
     DeleteDepsRecursively,
     luigi.Task,
-    ABC
-    ):
-
+    ABC,
+):
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
     dataset_settings = luigi.DictParameter()
-    validation_set_size = luigi.IntParameter(default=2**10)
+    validation_set_size = luigi.IntParameter(default=2 ** 10)
 
-    confidence_interval_width = luigi.FloatParameter(default=0.01)
+    n_bootstraps = luigi.IntParameter(default=100)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
 
     def requires(self):
         reqs = {}
-        reqs['CCC'] = self.CCC(
+        reqs["CCC"] = self.CCC(
             n_trials_per_training_set_size=self.n_trials_per_training_set_size,
-            n_max = self.n_max,
+            n_max=self.n_max,
             dataset_settings=self.dataset_settings,
-            validation_set_size=self.validation_set_size
-       )
+            validation_set_size=self.validation_set_size,
+        )
         # a sample is needed for inferring dimension
-        reqs['Sample'] = self.CCC.compute_stat_dist.samplegen. \
-            gen_sample_type(
-            dataset_settings = self.dataset_settings,
-            random_seed = 0,
-            generate_positive_sample = True,
-            sample_number = 0
+        reqs["Sample"] = self.CCC.compute_stat_dist.samplegen.gen_sample_type(
+            dataset_settings=self.dataset_settings,
+            random_seed=0,
+            generate_positive_sample=True,
+            sample_number=0,
         )
 
         return reqs
 
     def run(self):
         _inputs = self.load_input_dict()
-        res = _inputs['CCC']
-        CCC = self.requires()['CCC']
+        res = _inputs["CCC"]
+        CCC = self.requires()["CCC"]
         R1 = list(CCC.requires().values())[0]
-        fit_model = R1.requires()['model'].neighbor_method
+        fit_model = R1.requires()["model"].neighbor_method
 
-        y = res['sd_matrix']
+        y = res["accuracy_matrix"]
         # since we sample rows of x, this is equivalent to block bootstrap
-        X = np.tile(res['training_set_sizes'],
-                    (res['sd_matrix'].shape[0], 1))
+        X = np.tile(res["training_set_sizes"], (res["accuracy_matrix"].shape[0], 1))
         X = X.astype(np.double)
 
-        samp = _inputs['Sample'].x
-        if samp.ndim==1:
+        samp = _inputs["Sample"].x
+        if samp.ndim == 1:
             d = 1
         else:
             d = samp.shape[1]
 
-        if fit_model == 'gyorfi':
-            assert d>=3, 'The gyorfi convergence rate is only guaranteed to ' \
-                         'hold when d>=3, but d={}.'.format(d)
+        if fit_model == "gyorfi":
+            assert d >= 3, (
+                "The gyorfi convergence rate is only guaranteed to "
+                "hold when d>=3, but d={}.".format(d)
+            )
 
-        res = compute_bootstrapped_upper_bound(
-            X=X, y=y, d=d, fit_model=fit_model,
-            confidence_interval_prob=self.confidence_interval_prob,
-            confidence_interval_width=self.confidence_interval_width)
+        bootstrap = construct_bootstrap(X, d, fit_model, y)
+        boot_res = bootstrap.bootstrap_confidence_bounds(
+            self.confidence_interval_prob,
+            n_samples=self.n_bootstraps
+        )
+        rtv = {}
+        rtv["upper_bound"] = boot_res.ub_two_sided
+        rtv["lower_bound"] = boot_res.lb_two_sided
 
-        rtv = {
-            'mean' : np.mean(res['bootstrap_samples']),
-            'median' : np.median(res['bootstrap_samples']),
-            'std': res['std_est'],
-            'n_bootstraps': res['n_bootstraps'],
-            'p' : self.confidence_interval_prob,
-            'k_chebyshev': res['k_chebyshev']
-            }
-        rtv['upper_bound'] = res['ub']
-        with self.output().open('wb') as f:
+        rtv["lb_one_sided"] = boot_res.lb_one_sided
+        rtv["ub_one_sided"] = boot_res.ub_one_sided
+        rtv["lb_two_sided"] = boot_res.lb_two_sided
+        rtv["ub_two_sided"] = boot_res.ub_two_sided
+
+        with self.output().open("wb") as f:
             dill.dump(rtv, f)
 
 
 def ComputeAsymptoticAccuracy(
-        compute_convergence_curve: ComputeConvergenceCurve
-        ) -> _ComputeAsymptoticAccuracy:
+    compute_convergence_curve: ComputeConvergenceCurve
+) -> _ComputeAsymptoticAccuracy:
     class T(_ComputeAsymptoticAccuracy):
         pass
 
     T.CCC = compute_convergence_curve
     return T
 
-def compute_bootstrapped_upper_bound(X, d, fit_model, y,
-                                     confidence_interval_prob,
-                                     confidence_interval_width):
-    p_sqrt = sqrt(confidence_interval_prob)
-    n_bootstraps = hoeffding_n_given_t_and_p(
-        t=confidence_interval_width,
-        p=p_sqrt
-        )
-    k_chebyshev = chebyshev_k_from_upper_bound_prob(p_sqrt)
-    bootstrap_samples = bootstrap_ci(
-        n_bootstraps,
-        X=X,
-        y=y,
-        f=partial(asymptotic_privacy_lr, fit_model=fit_model, d=d)
-        )
-    bootstrap_samples = np.array(bootstrap_samples)
-    std_est = brugger_std_estimator(bootstrap_samples)
-    # from hoeffding UB + chebyshev UB
-    ub = np.mean(bootstrap_samples) \
-         + confidence_interval_width \
-         + k_chebyshev * std_est
-    return {'bootstrap_samples': bootstrap_samples,
-            'k_chebyshev': k_chebyshev,
-            'n_bootstraps': n_bootstraps,
-            'std_est': std_est,
-            'ub': ub}
+
+def construct_bootstrap(X, d, fit_model, classifier_accuracies):
+    k_nearest_neighbors = transform_n_to_k_for_knn(
+        Ns=X, fit_model=fit_model, d=d
+    )
+    classifier_accuracies[classifier_accuracies < 0.5] = 0.5
+    sample_gen = TransformingSampleGenerator(
+        data=(k_nearest_neighbors, classifier_accuracies),
+        transform=asymptotic_privacy_lr
+    )
+    return EmpiricalBootstrap(
+        sample_generator=sample_gen
+    )
 
 
-def hoeffding_n_given_t_and_p(t:np.double, p:np.double, C=0.5) -> int:
-    """
-    Return n such that with probability at least p, P(E[X] < \bar X_n + t).
-
-    Where \bar X_n is the mean of n samples.
-
-    Parameters
-    ----------
-    t : double
-        one sided confidence interval width
-    p : double
-        probability of bound holding
-    C : double
-        Width of sample support domain. E.g. 0.5 if all samples fall in
-            [0.5, 1.0]
-
-    Returns
-    -------
-
-    """
-    return int(ceil(C ** 2 * np.log(1 - p) / (-2 * t ** 2)))
-
-
-def chebyshev_k_from_upper_bound_prob(p_bound_holds:np.double) -> int:
-    """
-    Return k such with with probability at least p_bound_holds X will be < mu + k*sigma
-
-    Parameters
-    ----------
-    p_bound_holds : double
-
-    Returns
-    -------
-
-    """
-    p_bound_violated = 1 - p_bound_holds
-    return int(ceil(sqrt(1 / p_bound_violated)))
-
-
-def brugger_std_estimator(x:np.array) -> np.double:
-    """
-    A standard deviation estimator that attempts to correct the bias of a
-    regular n-1 DOF standard deviation estimator.
-
-    Assumes data is normally distributed. This is a reasonable assumption for us
-    since each data point is the classifier accuracy, which is a function of
-    the sum of many iid classification decisions.
-
-    Parameters
-    ----------
-    x : np.array
-
-    Returns
-    -------
-
-    """
-    n = x.size
-    mu = np.mean(x)
-    left_factor = 1 / (n - 1.5)
-    right_factor = np.sum((x - mu) ** 2)
-    return sqrt(left_factor * right_factor)
-
-
-def asymptotic_privacy_lr(training_set_sizes,
-                          classifier_accuracies,
-                          fit_model, d=None):
-    classifier_accuracies[classifier_accuracies < 0.5] = 0.5  # if the
-    # classifier is worse than random, the adversary would just guess randomly
-    # this accuracy is a lower bound for the random guess, when priors are
-    # 0.5 each. If one class had a larger prior we'd always guess that class.
-    Ks = transform_n_to_k_for_knn(Ns=training_set_sizes,
-                                  fit_model=fit_model,
-                                  d=d)
-    b = asymptotic_curve(Ks, classifier_accuracies)
-    return b[0]
-
-
-def transform_n_to_k_for_knn(Ns, fit_model, d=None):
-    if fit_model == 'gyorfi':
-        rtv = [-1.0 / get_k(method='gyorfi', num_samples=x, d=d) for x in Ns]
-    elif 'sqrt' in fit_model:
-        rtv = [-1.0 / get_k(method='sqrt', num_samples=x) for x in Ns]
-    return np.array(rtv)
+def asymptotic_privacy_lr(input_):
+    k_nearest_neighbors, classifier_accuracies = input_
+    k_nearest_neighbors = k_nearest_neighbors.reshape(k_nearest_neighbors.size)
+    classifier_accuracies = classifier_accuracies.reshape(classifier_accuracies.size)
+    b = asymptotic_curve(k_nearest_neighbors, classifier_accuracies)
+    return b[0]  # b=[m, C]
 
 
 def asymptotic_curve(X, y):
@@ -232,34 +144,19 @@ def asymptotic_curve(X, y):
     return fit[0]
 
 
-def bootstrap_ci(n_samples: int, X: np.ndarray, y: np.ndarray,
-                 f: typing.Callable[[np.ndarray, np.ndarray, int], np.double]) \
-        -> np.ndarray:
-    """
-    Perform block bootstrap row-wise and then reshape into 1-dim arrays
+def transform_n_to_k_for_knn(Ns, fit_model, d=None):
+    if Ns.ndim > 1:
+        rtv = np.empty_like(Ns)
+        for i in range(Ns.shape[0]):
+            rtv[i, :] = transform_n_to_k_for_knn(Ns[i], fit_model, d)
+        return rtv
 
-    Examples
-    --------
-    bootstrap_asymp = bootstrap_ci(100, x, y, asymptotic_curve_torch)
+    if fit_model == "gyorfi":
+        rtv = [-1.0 / get_k(method="gyorfi", num_samples=x, d=d) for x in Ns]
+    elif "sqrt" in fit_model:
+        rtv = [-1.0 / get_k(method="sqrt", num_samples=x) for x in Ns]
+    return np.array(rtv)
 
-    Parameters
-    ----------
-    n_samples :
-    X :
-    y :
-    f :
-
-    Returns
-    -------
-
-    """
-    res = np.empty((n_samples,))
-    for tri in range(n_samples):
-        Xi, yi = resample(X, y, random_state=tri)
-        Xi = Xi.reshape(Xi.size)
-        yi = yi.reshape(yi.size)
-        res[tri] = f(Xi, yi)
-    return res
 
 try:
     import torch
@@ -270,10 +167,9 @@ try:
         return (mod.m.item(), mod.c.item())
 
     class KNNConvergenceCurve(torch.nn.Module):
-        def __init__(self,  x: torch.Tensor,
-                            y: torch.Tensor,
-                            d: int,
-                            print_to_console=False):
+        def __init__(
+            self, x: torch.Tensor, y: torch.Tensor, d: int, print_to_console=False
+        ):
             super(KNNConvergenceCurve, self).__init__()
             self.m = torch.ones(1, requires_grad=True, dtype=torch.double)
             self.c = torch.ones(1, requires_grad=True, dtype=torch.double)
@@ -313,11 +209,13 @@ try:
                     self.m.grad.zero_()
                     self.c.grad.zero_()
 
-        def fit_with_optimizer(self,
-                               learning_rate=0.01,
-                               n_iter=500,
-                               opt=torch.optim.Adam,
-                               loss_fn=torch.nn.MSELoss(reduction='sum')):
+        def fit_with_optimizer(
+            self,
+            learning_rate=0.01,
+            n_iter=500,
+            opt=torch.optim.Adam,
+            loss_fn=torch.nn.MSELoss(reduction="sum"),
+        ):
             opt = opt([self.m, self.c], lr=learning_rate)
             for t in range(n_iter):
                 y_pred = self.predict(self.x)
@@ -327,5 +225,7 @@ try:
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
+
+
 except ImportError:
     pass

@@ -265,7 +265,7 @@ class CCCFVSVD(ComputeConvergenceCurve(EvaluateKNNFVSVDSD)):
 class AsymptoticAnalysisSVD(ComputeAsymptoticAccuracy(CCCSVD)):
     pass
 
-def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
+def gen_SVD_asymptotics_for_multiple_docs(n_bootstraps=100,
                                           p=0.99,
                                           n_docs=10,
                                           n_trials_per_training_set_size=3,
@@ -282,7 +282,7 @@ def gen_SVD_asymptotics_for_multiple_docs(t=0.01,
         ds = deepcopy(dataset_settings)
         ds['doc_ind'] = doc_i
         AAs.append(AAType(
-            confidence_interval_width=t,
+            n_bootstraps=n_bootstraps,
             confidence_interval_prob=p,
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,
