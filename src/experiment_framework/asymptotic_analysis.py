@@ -149,7 +149,7 @@ def transform_n_to_k_for_knn(Ns, fit_model, d=None):
         return rtv
 
     if fit_model == "gyorfi":
-        rtv = [-1.0 / x**(2/(d+2)) for x in Ns]
+        rtv = [-1.0 / x**(1/(d+2)) for x in Ns]  # 1/(d+2) is from Doring
     elif "sqrt" in fit_model:
         rtv = [-1.0 / get_k(method="sqrt", num_samples=x) for x in Ns]
     return np.array(rtv)

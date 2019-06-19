@@ -83,7 +83,7 @@ def DensityEstFitterMixin(statistic_column=0, bandwidth_method=None):
 
 def get_k(method, num_samples, d=None, **kwargs):
     if method == 'gyorfi':
-        k = ceil(num_samples ** (2 / (d + 2)))
+        k = floor(num_samples ** (2 / (d + 2)))
     elif 'sqrt' in method:
         k = ceil(sqrt(num_samples))
 

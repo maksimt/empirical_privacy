@@ -40,6 +40,7 @@ class _ComputeConvergenceCurve(
 
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=200)
+    in_memory = luigi.BoolParameter(default=False)
 
     @property
     def priority(self):
@@ -84,10 +85,18 @@ class _ComputeConvergenceCurve(
                     validation_set_size=self.validation_set_size,
                     random_seed='trial{}'.format(trial)
                     )
-        return reqs
+        if self.in_memory:
+            self._reqs = reqs
+            return []
+        else:
+            return reqs
 
     def run(self):
-        _inputs = self.load_input_dict()
+        if self.in_memory:
+            _inputs = self._reqs
+
+        else:
+            _inputs = self.load_input_dict()
         tss = self._training_set_sizes
         accuracy_matrix = np.empty(
             (self.n_trials_per_training_set_size, self.n_steps))
@@ -180,6 +189,8 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     samples_per_class = luigi.IntParameter()
     random_seed = luigi.Parameter()
 
+    in_memory = luigi.BoolParameter(default=False)
+
     @abstractmethod
     def fit_model(self, negative_samples, positive_samples):
         """
@@ -218,10 +229,19 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
             random_seed=self.random_seed,
             generate_positive_samples=False
             )
-        return req
+        self.req_ = req
+        if not self.in_memory:
+            return req
 
     def run(self):
-        _input = self.load_input_dict()
+        if not self.in_memory:
+            _input = self.load_input_dict()
+        else:
+            _input = self.req_
+            for key, obj in _input.items():
+                obj.run()
+                _input[key] = obj.output_
+
         model = self.fit_model(_input['samples_negative'],
                                _input['samples_positive'])
         with self.output().open('wb') as f:
@@ -294,8 +314,11 @@ class _GenSamples(
             y = self.y_concatenator((prev['y'], self.y_concatenator(y)))
         else:
             y = self.y_concatenator(y)
+        output = {'X': X, 'y': y}
+        self.output_ = output
+
         with self.output().open('w') as f:
-            dill.dump({'X': X, 'y': y}, f, 2)
+            dill.dump(output, f, 2)
 
 
 Sample = namedtuple('Sample', ['x', 'y'])
