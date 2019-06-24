@@ -70,6 +70,26 @@ class LoadInputDictMixin(luigi.Task):
                     inp = np.load(f)
         return inp
 
+    def compute_or_load_requirements(self):
+        if not self.in_memory:
+            _input = self.load_input_dict()
+        else:
+            _input = self.reqs_
+            for key, obj in _input.items():
+                _input[key] = self._populate_obj(obj)
+        return _input
+
+    @staticmethod
+    def _populate_obj(obj):
+        if hasattr(obj, 'requires'):
+            obj.requires()  # to get the object to populate reqs_
+            obj.run()
+            return obj.output_
+        elif type(obj) == list:
+            for i in range(len(obj)):
+                obj[i] = LoadInputDictMixin._populate_obj(obj[i])
+            return obj
+
     def load_completed_reqs(self):
         paths = []
         fns = os.listdir(self.base_path)

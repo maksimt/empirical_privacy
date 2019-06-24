@@ -1,10 +1,10 @@
 import copy
-import time
 
 import dill
 import luigi
 import numpy as np
 import pytest
+import time
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
@@ -23,10 +23,10 @@ def ds_rs():
             'n_trials'      : n,
             'prob_success'  : p,
             'gen_distr_type': 'binom',
-            },
+        },
         'random_seed'     : '1338',
         'sd'              : one_bit_sum.sd(n, p)
-        }
+    }
 
 
 def test_gen_samples_one_bit(ds_rs):
@@ -38,7 +38,7 @@ def test_gen_samples_one_bit(ds_rs):
         generate_positive_samples=True,
         num_samples=23,
         **ds_rs
-        )
+    )
     luigi.build([GSTask], local_scheduler=True, workers=1, log_level='ERROR')
     with GSTask.output().open() as f:
         samples = dill.load(f)
@@ -74,7 +74,7 @@ def ccc_kwargs(ds_rs):
         'n_max'                         : 2 ** 9,
         'dataset_settings'              : ds_rs['dataset_settings'],
         'validation_set_size'           : 10
-        }
+    }
 
 
 @pytest.fixture(scope='session')
@@ -110,7 +110,7 @@ def built_ccc(ccc_kwargs):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                               })
+                                           })
     CCC2_inst = CCC(**ccc_kwargs)
     start_clock = time.clock()
     luigi.build([CCC2_inst], local_scheduler=True, workers=8, log_level='ERROR')
@@ -155,7 +155,7 @@ def test_other_ccc_fitters(fitter, ccc_kwargs, expected_accuracy_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                               },
+                                           },
                                            fitter=fitter)
     TheCCC = CCC(**ccc_kwargs)
     luigi.build([TheCCC], local_scheduler=True, workers=1,
@@ -170,7 +170,7 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_accuracy_matrix_shape):
     CCC = build_convergence_curve_pipeline(one_bit_sum.GenSampleOneBitSum,
                                            gensample_kwargs={
                                                'generate_in_batch': True
-                                               },
+                                           },
                                            fitter='knn')
     CCCs = []
     for rs in range(5, 10):
@@ -188,12 +188,74 @@ def test_asymptotic_generator(ds_rs):
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
         asymptotic_settings={'n_docs': 1, 'n_max': 2 ** 9}
-        )
+    )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]
     with AA.output().open() as f:
         res = dill.load(f)
-    assert 'mean' in res and 'upper_bound' in res
+    assert 'upper_bound' in res
+
+
+def test_deterministic(ds_rs):
+    kwargs = dict(gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
+                  dataset_settings=ds_rs['dataset_settings'],
+                  asymptotic_settings={
+                      'n_docs'         : 1,
+                      'n_max'          : 2 ** 7,
+                      'knn_curve_model': 'sqrt'
+                  })
+    All = AllAsymptotics(**kwargs)
+    luigi.build([All], local_scheduler=True, workers=4, log_level='ERROR')
+    AA = All.requires()[0]
+    with AA.output().open() as f:
+        res1 = dill.load(f)
+    AA.delete_deps()
+    AA.delete_outputs()
+
+    All = AllAsymptotics(**kwargs)
+    luigi.build([All], local_scheduler=True, workers=4, log_level='ERROR')
+    AA = All.requires()[0]
+    with AA.output().open() as f:
+        res2 = dill.load(f)
+    AA.delete_deps()
+    AA.delete_outputs()
+
+    assert res1 == res2
+
+
+def test_in_memory_is_the_same(ds_rs):
+    # All = AllAsymptotics(
+    #     gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
+    #     dataset_settings=ds_rs['dataset_settings'],
+    #     asymptotic_settings={
+    #         'n_docs'   : 1,
+    #         'n_max'    : 2 ** 9,
+    #         'in_memory': True,
+    #         'knn_curve_model': 'sqrt'
+    #     }
+    # )
+    # luigi.build([All], local_scheduler=True, workers=1, log_level='ERROR')
+    # AA = All.requires()[0]
+    # with AA.output().open() as f:
+    #     res_in_memory = dill.load(f)
+    # AA.delete_deps()
+    # AA.delete_outputs()
+
+    All = AllAsymptotics(
+        gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
+        dataset_settings=ds_rs['dataset_settings'],
+        asymptotic_settings={
+            'n_docs'         : 1,
+            'n_max'          : 2 ** 9,
+            'knn_curve_model': 'sqrt'
+        }
+    )
+    luigi.build([All], local_scheduler=True, workers=16, log_level='ERROR')
+    AA = All.requires()[0]
+    with AA.output().open() as f:
+        res_orig = dill.load(f)
+
+    assert res_orig == res_in_memory
 
 
 def test_importlib(ds_rs):
@@ -207,7 +269,7 @@ def test_importlib(ds_rs):
         generate_positive_sample=True,
         sample_number=0,
         **ds_rs
-        )
+    )
     luigi.build([GSTask], local_scheduler=True, workers=1, log_level='ERROR')
     with GSTask.output().open() as f:
         samples = dill.load(f)

@@ -32,6 +32,12 @@ class _ComputeAsymptoticAccuracy(
 
     n_bootstraps = luigi.IntParameter(default=100)
     confidence_interval_prob = luigi.FloatParameter(default=0.90)
+    knn_curve_model = luigi.Parameter(default="gyorfi",
+                                      description="The knn curve model."
+                                                  "Used to estimate the asymptotic accuracy."
+                                                  "'gyorfi' by default.")
+
+    in_memory = luigi.BoolParameter(default=False)
 
     def requires(self):
         reqs = {}
@@ -40,6 +46,7 @@ class _ComputeAsymptoticAccuracy(
             n_max=self.n_max,
             dataset_settings=self.dataset_settings,
             validation_set_size=self.validation_set_size,
+            in_memory=self.in_memory
         )
         # a sample is needed for inferring dimension
         reqs["Sample"] = self.CCC.compute_stat_dist.samplegen.gen_sample_type(
@@ -54,9 +61,7 @@ class _ComputeAsymptoticAccuracy(
     def run(self):
         _inputs = self.load_input_dict()
         res = _inputs["CCC"]
-        CCC = self.requires()["CCC"]
-        R1 = list(CCC.requires().values())[0]
-        fit_model = R1.requires()["model"].neighbor_method
+        fit_model = self.knn_curve_model
 
         y = res["accuracy_matrix"]
         # since we sample rows of x, this is equivalent to block bootstrap

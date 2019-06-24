@@ -83,20 +83,17 @@ class _ComputeConvergenceCurve(
                     dataset_settings=self.dataset_settings,
                     training_set_size=training_set_size,
                     validation_set_size=self.validation_set_size,
-                    random_seed='trial{}'.format(trial)
+                    random_seed='trial{}'.format(trial),
+                    in_memory=self.in_memory
                     )
+        self.reqs_ = reqs
         if self.in_memory:
-            self._reqs = reqs
-            return []
-        else:
-            return reqs
+            return {}
+        return reqs
 
     def run(self):
-        if self.in_memory:
-            _inputs = self._reqs
+        _inputs = self.compute_or_load_requirements()
 
-        else:
-            _inputs = self.load_input_dict()
         tss = self._training_set_sizes
         accuracy_matrix = np.empty(
             (self.n_trials_per_training_set_size, self.n_steps))
@@ -108,10 +105,10 @@ class _ComputeConvergenceCurve(
             col = np.argwhere(tss == training_set_size)[0, 0]
             accuracy_matrix[trial, col] = _inputs[_CP(trial, training_set_size)]['accuracy']
 
+        self.output_ = {'accuracy_matrix': accuracy_matrix,
+                       'training_set_sizes':tss}
         with self.output().open('wb') as f:
-            dill.dump({'accuracy_matrix': accuracy_matrix,
-                       'training_set_sizes':tss},
-                      f, 2)
+            dill.dump(self.output_, f, 2)
 
 
 def EvaluateStatisticalDistance(samplegen: '_GenSamples',
@@ -137,38 +134,45 @@ class _EvaluateStatisticalDistance(
     validation_set_size = luigi.IntParameter()
     random_seed = luigi.Parameter()
 
+    in_memory = luigi.BoolParameter(default=False)
+
     def requires(self):
         reqs = {}
         reqs['model'] = self.model(
             dataset_settings=self.dataset_settings,
             samples_per_class=int(round(self.training_set_size / 2)),
-            random_seed=self.random_seed
+            random_seed=self.random_seed,
+            in_memory = self.in_memory
             )
         reqs['samples_positive'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
             random_seed='validation_seed{}_pos'.format(self.random_seed),
-            generate_positive_samples=True
+            generate_positive_samples=True,
             )
         reqs['samples_negative'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
             random_seed='validation_seed{}_neg'.format(self.random_seed),
-            generate_positive_samples=False
+            generate_positive_samples=False,
             )
+        self.reqs_ = reqs
+        if self.in_memory:
+            return {}
         return reqs
 
     def run(self):
-        _input = self.load_input_dict()
+        _input = self.compute_or_load_requirements()
         accuracy = self.model.compute_classification_accuracy(
             _input['model'],
             _input['samples_positive'],
             _input['samples_negative']
             )
         sd = accuracy_to_statistical_distance(accuracy)
+        self.output_ = {'statistical_distance': sd,
+                       'accuracy': accuracy}
         with self.output().open('wb') as f:
-            dill.dump({'statistical_distance': sd,
-                       'accuracy': accuracy}, f, 0)
+            dill.dump(self.output_, f, 0)
 
 
 def FitModel(gen_samples_type):
@@ -221,29 +225,29 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
             random_seed=self.random_seed,
-            generate_positive_samples=True
+            generate_positive_samples=True,
             )
         req['samples_negative'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
             random_seed=self.random_seed,
-            generate_positive_samples=False
+            generate_positive_samples=False,
             )
-        self.req_ = req
+        self.reqs_ = req
         if not self.in_memory:
             return req
+        return {}
 
     def run(self):
-        if not self.in_memory:
-            _input = self.load_input_dict()
-        else:
-            _input = self.req_
-            for key, obj in _input.items():
-                obj.run()
-                _input[key] = obj.output_
+        _input = self.compute_or_load_requirements()
 
+        # We set the random seed since the model's fitter may use
+        # numbers from the random stream.
+        GenSample.set_simple_random_seed(sample_number=-1,
+                                         random_seed=self.random_seed)
         model = self.fit_model(_input['samples_negative'],
                                _input['samples_positive'])
+        self.output_ = model
         with self.output().open('wb') as f:
             dill.dump(model, f, 2)
 
@@ -271,10 +275,10 @@ class _GenSamples(
 
                 )
                 for sample_num in range(self.num_samples)]
-            return {'samples': reqs}
-        if self.num_samples > MIN_SAMPLES:
+            reqs = {'samples': reqs}
+        elif self.generate_in_batch and self.num_samples > MIN_SAMPLES:
             self.n_prev = np.floor(self.num_samples / SAMPLES_BASE).astype(int)
-            return {
+            reqs = {
                 'prev': self.__class__(  # because the class will have
                     # been specialized by the factory GenSamples()
                     dataset_settings=self.dataset_settings,
@@ -283,16 +287,22 @@ class _GenSamples(
                     num_samples=self.n_prev
                     )
                 }
-        self.n_prev = 0
-        return {}
+        else:
+            self.n_prev = 0
+            reqs = {}
+        self.reqs_ = reqs
+
+        if self.in_memory:
+            return {}
+        return reqs
 
     def run(self):
+        prev = {'X': None, 'y': None}
         if not self.generate_in_batch:
-            samples = self.load_input_dict()['samples']
+            samples = self.compute_or_load_requirements()['samples']
         else:  # self.generate_in_batch
-            prev = {'X': None, 'y': None}
             if self.num_samples > MIN_SAMPLES:
-                prev = self.load_input_dict()['prev']
+                prev = self.compute_or_load_requirements()['prev']
 
             f_GS = self.gen_sample_type(dataset_settings=self.dataset_settings,
                                         random_seed=self.random_seed,
@@ -300,7 +310,6 @@ class _GenSamples(
                                         ).gen_sample
 
             samples = []
-            n_to_make = self.num_samples - self.n_prev + 1
             for sn in range(self.n_prev, self.num_samples):
                 # set_progress_percentage is a blocking network IO operation... lol
                 # self.set_progress_percentage(100*(sn-self.n_prev)/n_to_make)
@@ -357,8 +366,10 @@ class GenSample(
                              'The sample_number argument is only optional if '
                              'the gen_sample() method is called directly.')
         x, y = self.gen_sample(sample_number=self.sample_number)
+
+        self.output_ = Sample(x, y)
         with self.output().open('wb') as f:
-            dill.dump(Sample(x, y), f, 2)
+            dill.dump(self.output_, f, 2)
 
 
 def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
@@ -394,4 +405,5 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
             attr = load_from(attr)
         setattr(T, attr_name, staticmethod(attr))
     T.generate_in_batch = generate_in_batch
+    T.in_memory = generate_in_batch
     return T

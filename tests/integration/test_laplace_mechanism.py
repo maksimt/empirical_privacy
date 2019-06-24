@@ -39,7 +39,8 @@ def asymptotics_settings():
         'n_max'                         : 2 ** 9,
         'validation_set_size'           : 2 ** 9,
         'p'                             : 0.9,  # for bootstrap
-        'n_bootstraps'                  : 1000  # for bootstrap
+        'n_bootstraps'                  : 1000,  # for bootstrap
+        'in_memory'                     : True  # for speed
     }
 
 
@@ -110,8 +111,8 @@ def test_distinct_samples_generated(gen_positive_samples, gs):
 @pytest.mark.parametrize('random_seed', np.arange(10))
 def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
                                                              ds):
-    ESD = EvaluateKNNLaplaceStatDist(training_set_size=2 ** 9,
-                                     validation_set_size=2 ** 9,
+    ESD = EvaluateKNNLaplaceStatDist(training_set_size=2 ** 10,
+                                     validation_set_size=2 ** 10,
                                      dataset_settings=ds,
                                      random_seed=random_seed)
     luigi.build([ESD], local_scheduler=True, workers=1, log_level='ERROR')

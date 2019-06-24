@@ -78,6 +78,8 @@ def asymptotics_for_multiple_docs(
         n_trials_per_training_set_size=10,
         validation_set_size=64,
         n_max=256,
+        in_memory=False,
+        knn_curve_model='gyorfi'
 ):
     if 'doc_ind' in dataset_settings:
         logging.warning('doc_ind is overwritten; if you need granular control'
@@ -100,7 +102,9 @@ def asymptotics_for_multiple_docs(
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,
             dataset_settings=ds,
-            validation_set_size=validation_set_size
+            validation_set_size=validation_set_size,
+            in_memory=in_memory,
+            knn_curve_model=knn_curve_model
         )
         )
     return AAs
