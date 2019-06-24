@@ -37,7 +37,7 @@ def test_CCC(ccc_kwargs):
                 log_level='ERROR')
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
-    assert res['accuracy_matrix'].shape == (3,2)
+    assert res['accuracy_matrix'].shape == (3,5)
 
 @pytest.mark.parametrize('ccc_kwargs', ['hidden_eigs'], indirect=['ccc_kwargs'])
 def test_GS_20ng(ccc_kwargs):
@@ -61,7 +61,7 @@ def test_full_view_samples(ccc_kwargs):
                 log_level='ERROR')
     with CCCSVD_obj.output().open() as f:
         res = dill.load(f)
-    assert res['accuracy_matrix'].shape == (3, 2)
+    assert res['accuracy_matrix'].shape == (3, 5)
 
 def test_asymptotic_accuracy():
     ds = {

@@ -180,14 +180,18 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_accuracy_matrix_shape):
     luigi.build(CCCs, local_scheduler=True, workers=4, log_level='ERROR')
     DF = load_completed_CCCs_into_dataframe(CCCs)
     n_rows_exp = np.prod(expected_accuracy_matrix_shape) * 5
-    assert DF.shape == (n_rows_exp, 9)
+    assert DF.shape == (n_rows_exp, 10)
 
 
 def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotic_settings={'n_docs': 1, 'n_max': 2 ** 9}
+        asymptotic_settings={'n_docs': 1,
+                             'n_max': 2 ** 9,
+                             'knn_curve_model': 'sqrt'
+        },
+
     )
     luigi.build([All], local_scheduler=True, workers=8, log_level='ERROR')
     AA = All.requires()[0]
@@ -221,41 +225,6 @@ def test_deterministic(ds_rs):
     AA.delete_outputs()
 
     assert res1 == res2
-
-
-def test_in_memory_is_the_same(ds_rs):
-    # All = AllAsymptotics(
-    #     gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
-    #     dataset_settings=ds_rs['dataset_settings'],
-    #     asymptotic_settings={
-    #         'n_docs'   : 1,
-    #         'n_max'    : 2 ** 9,
-    #         'in_memory': True,
-    #         'knn_curve_model': 'sqrt'
-    #     }
-    # )
-    # luigi.build([All], local_scheduler=True, workers=1, log_level='ERROR')
-    # AA = All.requires()[0]
-    # with AA.output().open() as f:
-    #     res_in_memory = dill.load(f)
-    # AA.delete_deps()
-    # AA.delete_outputs()
-
-    All = AllAsymptotics(
-        gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
-        dataset_settings=ds_rs['dataset_settings'],
-        asymptotic_settings={
-            'n_docs'         : 1,
-            'n_max'          : 2 ** 9,
-            'knn_curve_model': 'sqrt'
-        }
-    )
-    luigi.build([All], local_scheduler=True, workers=16, log_level='ERROR')
-    AA = All.requires()[0]
-    with AA.output().open() as f:
-        res_orig = dill.load(f)
-
-    assert res_orig == res_in_memory
 
 
 def test_importlib(ds_rs):

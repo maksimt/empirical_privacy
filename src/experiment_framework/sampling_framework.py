@@ -87,12 +87,10 @@ class _ComputeConvergenceCurve(
                     in_memory=self.in_memory
                     )
         self.reqs_ = reqs
-        if self.in_memory:
-            return {}
         return reqs
 
     def run(self):
-        _inputs = self.compute_or_load_requirements()
+        _inputs = self.load_input_dict()
 
         tss = self._training_set_sizes
         accuracy_matrix = np.empty(
