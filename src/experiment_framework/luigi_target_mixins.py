@@ -81,6 +81,9 @@ class LoadInputDictMixin(luigi.Task):
 
     @staticmethod
     def _populate_obj(obj):
+        if obj.complete():
+            with obj.output().open() as f:
+                return dill.load(f)
         if hasattr(obj, 'requires'):
             obj.requires()  # to get the object to populate reqs_
             obj.run()
