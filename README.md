@@ -18,11 +18,10 @@ We hope that our privacy estimation algorithms, and experiment framework can be 
 ```bash
 git clone https://github.com/maksimt/empirical_privacy
 cd empirical_privacy
-docker build -t derivedjupyter .
-docker run -p 8888:8888 -p 8082:8082 -v $(pwd):/emp_priv derivedjupyter:latest
+docker-compose up
 ```
 2. Navigate to the jupyter-notebook running inside the docker container.
-  1. Get the jupyter token `docker logs 2>&1 $(docker ps 2>&1 | grep derivedjupyter | awk '{print $1}') | grep token`
+  1. Get the jupyter token from the console output.
   2. Navigate to `127.0.0.1:8888` and enter the token you just got.
 3. Open Notebooks/Experiment 1 -- Bootstrap Validation.ipynb.ipynb and run the cells in order from top to bottom.
 

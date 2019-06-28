@@ -326,8 +326,9 @@ class _GenSamples(
         output = {'X': X, 'y': y}
         self.output_ = output
 
-        with self.output().open('w') as f:
-            dill.dump(output, f, 2)
+        if not self.dont_write_output:
+            with self.output().open('w') as f:
+                dill.dump(output, f, 2)
 
 
 Sample = namedtuple('Sample', ['x', 'y'])
@@ -373,7 +374,8 @@ class GenSample(
 
 
 def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
-               y_concatenator=np.concatenate, generate_in_batch=False) -> _GenSamples:
+               y_concatenator=np.concatenate, generate_in_batch=False,
+               dont_write_output=False) -> _GenSamples:
     """
     Parameters
     ----------
@@ -406,4 +408,5 @@ def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
         setattr(T, attr_name, staticmethod(attr))
     T.generate_in_batch = generate_in_batch
     T.in_memory = generate_in_batch
+    T.dont_write_output = dont_write_output
     return T
