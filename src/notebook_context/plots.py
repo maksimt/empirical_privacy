@@ -1,7 +1,6 @@
 
 import dill
 from matplotlib import cm
-import torch
 
 from experiment_framework.asymptotic_analysis import KNNConvergenceCurve
 from experiment_framework.asymptotic_analysis import (construct_bootstrap,
