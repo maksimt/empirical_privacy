@@ -37,7 +37,10 @@ def get_res(job):
 
 def cleanup():
     for fn in glob(os.path.join(LUIGI_COMPLETED_TARGETS_DIR, '*')):
-        os.remove(fn)
+        try:
+            os.remove(fn)
+        except (IsADirectoryError, FileNotFoundError):
+            pass
     os.sync()
 
 

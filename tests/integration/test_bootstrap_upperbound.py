@@ -2,8 +2,7 @@ import luigi
 import dill
 import pytest
 
-from experiment_framework.helpers import AllAsymptotics
-from empirical_privacy import one_bit_sum
+from experiment_framework.utils.helpers import AllAsymptotics
 
 
 @pytest.mark.parametrize(

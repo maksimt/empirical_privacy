@@ -1,3 +1,9 @@
+"""
+The three mixins here implement different ways of estimating the statistical distance.
+
+In our paper we only study the KNN methods. In order to study the other methods
+the first bit of work is to analyze their asymptotic behavior.
+"""
 from math import ceil, sqrt, floor
 
 import numpy as np
@@ -6,6 +12,60 @@ from scipy.stats import gaussian_kde
 from sklearn import neighbors
 from sklearn.metrics import make_scorer, accuracy_score
 from sklearn.model_selection import GridSearchCV
+
+
+def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
+    class T(object):
+        def fit_model(self, negative_samples, positive_samples):
+            X0 = negative_samples['X']
+            X1 = positive_samples['X']
+            y0 = negative_samples['y']
+            y1 = positive_samples['y']
+
+            X0, X1 = _ensure_2dim(X0, X1)
+
+            X = np.vstack((X0, X1))
+            y = np.concatenate((y0, y1))
+            num_samples = X.shape[0]
+            neighbor_method = self.neighbor_method
+            KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
+            if hasattr(neighbor_method, 'lower'):  # string
+                if neighbor_method == 'sqrt':
+                    k = get_k(neighbor_method, num_samples)
+                    KNN.n_neighbors = k
+                if neighbor_method == 'gyorfi':
+                    d = X0.shape[1]
+                    self.d = d
+                    k = get_k('gyorfi', num_samples, d=self.d)
+                    KNN.n_neighbors = k
+                if neighbor_method == 'cv':
+                    param_grid = \
+                        [{
+                            'n_neighbors': (num_samples **
+                                            np.linspace(0.1, 1, 9)).astype(
+                                np.int)
+                            }]
+                    gs = GridSearchCV(KNN, param_grid,
+                                      scoring=make_scorer(accuracy_score),
+                                      cv=min([3, num_samples]))
+                    gs.fit(X, y)
+                    KNN = gs.best_estimator_
+                if neighbor_method == 'sqrt_random_tiebreak':
+                    k = get_k('sqrt', num_samples)
+                    KNN.n_neighbors = k
+                    X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
+
+            KNN.fit(X, y)
+            return {'KNN': KNN}
+
+        @classmethod
+        def compute_classification_accuracy(cls, model=None, *samples):
+            assert model is not None, 'Model must be fitted first'
+            X, y = _stack_samples(samples)
+            return model['KNN'].score(X, y)
+
+    T.neighbor_method = neighbor_method
+    return T
 
 
 def ExpectationFitterMixin(statistic_column=0, bandwidth_method=None):
@@ -91,60 +151,6 @@ def get_k(method, num_samples, d=None, **kwargs):
     if k % 2 == 0:  # ensure k is odd
         k += 1
     return k
-
-
-def KNNFitterMixin(neighbor_method='sqrt_random_tiebreak'):
-    class T(object):
-        def fit_model(self, negative_samples, positive_samples):
-            X0 = negative_samples['X']
-            X1 = positive_samples['X']
-            y0 = negative_samples['y']
-            y1 = positive_samples['y']
-
-            X0, X1 = _ensure_2dim(X0, X1)
-
-            X = np.vstack((X0, X1))
-            y = np.concatenate((y0, y1))
-            num_samples = X.shape[0]
-            neighbor_method = self.neighbor_method
-            KNN = neighbors.KNeighborsClassifier(algorithm='brute', metric='l2')
-            if hasattr(neighbor_method, 'lower'):  # string
-                if neighbor_method == 'sqrt':
-                    k = get_k(neighbor_method, num_samples)
-                    KNN.n_neighbors = k
-                if neighbor_method == 'gyorfi':
-                    d = X0.shape[1]
-                    self.d = d
-                    k = get_k('gyorfi', num_samples, d=self.d)
-                    KNN.n_neighbors = k
-                if neighbor_method == 'cv':
-                    param_grid = \
-                        [{
-                            'n_neighbors': (num_samples **
-                                            np.linspace(0.1, 1, 9)).astype(
-                                np.int)
-                            }]
-                    gs = GridSearchCV(KNN, param_grid,
-                                      scoring=make_scorer(accuracy_score),
-                                      cv=min([3, num_samples]))
-                    gs.fit(X, y)
-                    KNN = gs.best_estimator_
-                if neighbor_method == 'sqrt_random_tiebreak':
-                    k = get_k('sqrt', num_samples)
-                    KNN.n_neighbors = k
-                    X = X + np.random.rand(X.shape[0], X.shape[1]) * 0.1
-
-            KNN.fit(X, y)
-            return {'KNN': KNN}
-
-        @classmethod
-        def compute_classification_accuracy(cls, model=None, *samples):
-            assert model is not None, 'Model must be fitted first'
-            X, y = _stack_samples(samples)
-            return model['KNN'].score(X, y)
-
-    T.neighbor_method = neighbor_method
-    return T
 
 
 def _ensure_2dim(X0, X1):

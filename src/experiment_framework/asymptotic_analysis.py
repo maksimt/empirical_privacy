@@ -9,7 +9,7 @@ from experiment_framework.empirical_bootstrap import (
     EmpiricalBootstrap,
     SampleGenerator
 )
-from experiment_framework.luigi_target_mixins import (
+from experiment_framework.utils.luigi_target_mixins import (
     AutoLocalOutputMixin,
     LoadInputDictMixin,
     DeleteDepsRecursively,

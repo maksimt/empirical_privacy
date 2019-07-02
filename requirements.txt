@@ -5,3 +5,4 @@ seaborn==0.9.0
 joblib==0.11
 luigi==2.8.1
 pytest
+pytest-xdist==1.29.0

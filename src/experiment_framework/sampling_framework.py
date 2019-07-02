@@ -9,10 +9,10 @@ import numpy as np
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, \
     MIN_SAMPLES, SAMPLES_BASE
-from experiment_framework.luigi_target_mixins import AutoLocalOutputMixin, \
+from experiment_framework.utils.luigi_target_mixins import AutoLocalOutputMixin, \
     LoadInputDictMixin, DeleteDepsRecursively
-from experiment_framework.python_helpers import load_from
-from experiment_framework.calculations import accuracy_to_statistical_distance
+from experiment_framework.utils.python_helpers import load_from
+from experiment_framework.utils.calculations import accuracy_to_statistical_distance
 
 
 def ComputeConvergenceCurve(

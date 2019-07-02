@@ -6,7 +6,7 @@ import luigi
 from empirical_privacy.row_distributed_svd import \
     CCCSVD, GenSVDSample, CCCFVSVD, AsymptoticAnalysisSVD, AllSVDAsymptotics, \
     svd_asymptotic_settings
-from experiment_framework.python_helpers import load_from
+from experiment_framework.utils.python_helpers import load_from
 
 @pytest.fixture(scope='function')
 def ccc_kwargs(request):

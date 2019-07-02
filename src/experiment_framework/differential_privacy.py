@@ -6,14 +6,14 @@ from math import exp
 
 from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
 from experiment_framework.asymptotic_analysis import _ComputeAsymptoticAccuracy
-from experiment_framework.calculations import accuracy_to_statistical_distance
-from experiment_framework.luigi_target_mixins import (
+from experiment_framework.utils.calculations import accuracy_to_statistical_distance
+from experiment_framework.utils.luigi_target_mixins import (
     AutoLocalOutputMixin,
     LoadInputDictMixin, DeleteDepsRecursively,
 )
 
 
-class _ComputeLowerBoundForDelta(
+class _ComputeBoundsForDelta(
     AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
     LoadInputDictMixin,
     DeleteDepsRecursively,
@@ -73,9 +73,9 @@ def compute_delta(stat_dist: float, epsilon: float):
     return exp(epsilon) * (stat_dist - (1 - 1 / exp(epsilon)))
 
 
-def ComputeLowerBoundForDelta(asymptotic_accuracy_computer:
-_ComputeAsymptoticAccuracy) -> _ComputeLowerBoundForDelta:
-    class T(_ComputeLowerBoundForDelta):
+def ComputeBoundsForDelta(asymptotic_accuracy_computer:
+_ComputeAsymptoticAccuracy) -> _ComputeBoundsForDelta:
+    class T(_ComputeBoundsForDelta):
         pass
 
     T.asymptotic_accuracy_computer = asymptotic_accuracy_computer

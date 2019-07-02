@@ -34,8 +34,3 @@ RUN conda install -f -y mkl blas=*=mkl
 COPY requirements.txt /tmp/requirements.txt
 
 RUN pip install -r /tmp/requirements.txt
-
-USER root
-
-RUN apt-get update && apt-get install -y --force-yes \
-    gs

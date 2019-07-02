@@ -32,9 +32,9 @@ def export_legend(legend, filename="legend.png", expand=[-5,-5,5,5]):
     legend.remove()
 
 
-def labeled_axhline(y_pos, label, color, ax, linestyle='-'):
+def labeled_axhline(y_pos, label, color, ax, linestyle='-', x_pos=0.7):
     plt.axhline(y_pos, color=color, linestyle=linestyle)
-    plt.text(0.7, y_pos,
+    plt.text(x_pos, y_pos,
              '{} = {:.3}'.format(label, y_pos),
              horizontalalignment='center',
              verticalalignment='center',

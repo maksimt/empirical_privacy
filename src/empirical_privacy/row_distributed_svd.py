@@ -1,6 +1,5 @@
 from copy import deepcopy
 from functools import partial
-import logging
 from itertools import product
 
 import numpy as np
@@ -15,7 +14,7 @@ from experiment_framework.privacy_estimator_mixins import KNNFitterMixin,\
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
 from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
-from experiment_framework.helpers import AllAsymptotics
+from experiment_framework.utils.helpers import AllAsymptotics
 
 
 def svd_dataset_settings(part_fraction=0.3,

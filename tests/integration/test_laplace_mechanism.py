@@ -7,8 +7,8 @@ from empirical_privacy.laplace_mechanism import (
     GenSampleLaplaceMechanism,
     EvaluateKNNLaplaceStatDist,
 )
-from experiment_framework.differential_privacy import _ComputeLowerBoundForDelta
-from experiment_framework.helpers import deltas_for_multiple_docs
+from experiment_framework.differential_privacy import _ComputeBoundsForDelta
+from experiment_framework.utils.helpers import deltas_for_multiple_docs
 from experiment_framework.sampling_framework import GenSamples
 
 
@@ -55,7 +55,7 @@ def gs(ds):
 
 
 @pytest.fixture()
-def clbd(ds, asymptotics_settings) -> _ComputeLowerBoundForDelta:
+def clbd(ds, asymptotics_settings) -> _ComputeBoundsForDelta:
     CLBDs = deltas_for_multiple_docs(dataset_settings=ds,
                                      GS=GenSampleLaplaceMechanism,
                                      claimed_epsilon=0.1,

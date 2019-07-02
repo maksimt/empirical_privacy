@@ -8,9 +8,10 @@ import time
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
-from experiment_framework.helpers import build_convergence_curve_pipeline, \
-    load_completed_CCCs_into_dataframe, AllAsymptotics
-from experiment_framework.python_helpers import load_from
+from experiment_framework.utils.helpers import build_convergence_curve_pipeline, \
+    AllAsymptotics
+from notebook_context.pandas_interface import load_completed_CCCs_into_dataframe
+from experiment_framework.utils.python_helpers import load_from
 from experiment_framework.sampling_framework import GenSamples
 
 
@@ -58,10 +59,10 @@ def test_compute_stat_dist(ds_rs):
         ds_rs.pop('sd')
     except KeyError:
         pass
-    ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=200,
+    ESD = one_bit_sum.EvaluateKNNOneBitSD(training_set_size=1000,
                                           validation_set_size=500,
                                           **ds_rs)
-    luigi.build([ESD], local_scheduler=True, workers=1, log_level='ERROR')
+    luigi.build([ESD], local_scheduler=True, workers=1, log_level='INFO')
     with ESD.output().open() as f:
         sd = dill.load(f)['statistical_distance']
     assert (sd > 0 and sd < 1)
