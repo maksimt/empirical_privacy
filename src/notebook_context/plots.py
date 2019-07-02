@@ -2,19 +2,11 @@
 import dill
 from matplotlib import cm
 
-from experiment_framework.asymptotic_analysis import KNNConvergenceCurve
 from experiment_framework.asymptotic_analysis import (construct_bootstrap,
 asymptotic_curve, transform_n_to_k_for_knn)
 from empirical_privacy import config
 from notebook_context import *
 
-def plot_fit(mod : KNNConvergenceCurve):
-    x = mod.x.numpy()
-    y = mod.y.numpy()
-    sns.scatterplot(x=x, y=y)
-    N = np.logspace(np.log2(np.min(x)), np.log2(np.max(x)*1.05), base=2)
-    plt.plot(N, mod.predict(torch.from_numpy(N)).detach().numpy(), '-r')
-    plt.plot(N, np.ones_like(N)*mod.m.item(), '--r')
 
 def plot_CCCs(CCCs, labels=None):
     if labels is None:
