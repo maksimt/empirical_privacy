@@ -12,6 +12,7 @@ from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin,
 from experiment_framework.utils.python_helpers import load_from
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
     EvaluateStatisticalDistance, ComputeConvergenceCurve
+from empirical_privacy.config import MIN_SAMPLES
 
 
 class AllDeltas(luigi.WrapperTask):
@@ -74,6 +75,7 @@ def asymptotics_for_multiple_docs(
         n_trials_per_training_set_size=10,
         validation_set_size=64,
         n_max=256,
+        min_samples=MIN_SAMPLES,
         in_memory=False,
         knn_curve_model='gyorfi'
 ):
@@ -97,6 +99,7 @@ def asymptotics_for_multiple_docs(
             confidence_interval_prob=p,
             n_trials_per_training_set_size=n_trials_per_training_set_size,
             n_max=n_max,
+            min_samples=min_samples,
             dataset_settings=ds,
             validation_set_size=validation_set_size,
             in_memory=in_memory,
