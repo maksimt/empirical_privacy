@@ -37,6 +37,7 @@ class _ComputeConvergenceCurve(
     ):
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
+    min_samples = luigi.IntParameter(default=MIN_SAMPLES)
 
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=200)
@@ -53,7 +54,7 @@ class _ComputeConvergenceCurve(
 
     @property
     def pow_min(self):
-        return np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
+        return np.floor(np.log(self.min_samples) / np.log(SAMPLES_BASE)
                         + np.spacing(1)).astype(np.int)
 
     @property

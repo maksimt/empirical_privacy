@@ -4,7 +4,7 @@ import dill
 import luigi
 import numpy as np
 
-from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
+from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, MIN_SAMPLES
 from experiment_framework.empirical_bootstrap import (
     EmpiricalBootstrap,
     SampleGenerator
@@ -27,6 +27,7 @@ class _ComputeAsymptoticAccuracy(
 ):
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
+    min_samples = luigi.IntParameter(default=MIN_SAMPLES)
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=2 ** 10)
 
@@ -44,6 +45,7 @@ class _ComputeAsymptoticAccuracy(
         reqs["CCC"] = self.CCC(
             n_trials_per_training_set_size=self.n_trials_per_training_set_size,
             n_max=self.n_max,
+            min_samples = self.min_samples,
             dataset_settings=self.dataset_settings,
             validation_set_size=self.validation_set_size,
             in_memory=self.in_memory
