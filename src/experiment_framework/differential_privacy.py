@@ -4,7 +4,7 @@ import dill
 import luigi
 from math import exp
 
-from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR
+from empirical_privacy.config import LUIGI_COMPLETED_TARGETS_DIR, MIN_SAMPLES
 from experiment_framework.asymptotic_analysis import _ComputeAsymptoticAccuracy
 from experiment_framework.utils.calculations import accuracy_to_statistical_distance
 from experiment_framework.utils.luigi_target_mixins import (
@@ -24,6 +24,7 @@ class _ComputeBoundsForDelta(
 
     n_trials_per_training_set_size = luigi.IntParameter()
     n_max = luigi.IntParameter()
+    min_samples = luigi.IntParameter(default=MIN_SAMPLES)
     dataset_settings = luigi.DictParameter()
     validation_set_size = luigi.IntParameter(default=2 ** 10)
     n_bootstraps = luigi.IntParameter(default=100)
@@ -42,6 +43,7 @@ class _ComputeBoundsForDelta(
         reqs['asymptotic_accuracy'] = self.asymptotic_accuracy_computer(
             n_trials_per_training_set_size=self.n_trials_per_training_set_size,
             n_max=self.n_max,
+            min_samples=self.min_samples,
             dataset_settings=dataset_settings,
             validation_set_size=self.validation_set_size,
             n_bootstraps=self.n_bootstraps,
