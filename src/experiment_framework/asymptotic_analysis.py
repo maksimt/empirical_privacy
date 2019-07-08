@@ -112,7 +112,7 @@ def construct_bootstrap(X, d, fit_model, classifier_accuracies):
     k_nearest_neighbors = transform_n_to_k_for_knn(
         Ns=X, fit_model=fit_model, d=d
     )
-    classifier_accuracies[classifier_accuracies < 0.5] = 0.5
+    # classifier_accuracies[classifier_accuracies < 0.5] = 0.5
     data = np.array([asymptotic_privacy_lr([ks, accus])
                      for ks, accus in zip(k_nearest_neighbors, classifier_accuracies)])
     sample_gen = SampleGenerator(data=data)
