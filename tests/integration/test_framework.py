@@ -181,7 +181,7 @@ def test_load_CCCs_into_DF(ccc_kwargs, expected_accuracy_matrix_shape):
     luigi.build(CCCs, local_scheduler=True, workers=4, log_level='ERROR')
     DF = load_completed_CCCs_into_dataframe(CCCs)
     n_rows_exp = np.prod(expected_accuracy_matrix_shape) * 5
-    assert DF.shape == (n_rows_exp, 10)
+    assert DF.shape == (n_rows_exp, 11)
 
 
 def test_asymptotic_generator(ds_rs):
@@ -206,7 +206,8 @@ def test_deterministic(ds_rs):
                   dataset_settings=ds_rs['dataset_settings'],
                   asymptotic_settings={
                       'n_docs'         : 1,
-                      'n_max'          : 2 ** 7,
+                      'min_samples'    : 2 ** 7,
+                      'n_max'          : 2 ** 8,
                       'knn_curve_model': 'sqrt'
                   })
     All = AllAsymptotics(**kwargs)

@@ -8,8 +8,8 @@ from empirical_privacy.laplace_mechanism import (
     EvaluateKNNLaplaceStatDist,
 )
 from experiment_framework.differential_privacy import _ComputeBoundsForDelta
-from experiment_framework.utils.helpers import deltas_for_multiple_docs
 from experiment_framework.sampling_framework import GenSamples
+from experiment_framework.utils.helpers import deltas_for_multiple_docs
 
 
 @pytest.fixture()
@@ -36,6 +36,7 @@ def asymptotics_settings():
         'fitter_kwargs'                 : {'neighbor_method': 'gyorfi'},
         'n_docs'                        : 1,
         'n_trials_per_training_set_size': 300,
+        'min_samples'                   : 2 ** 8,
         'n_max'                         : 2 ** 9,
         'validation_set_size'           : 2 ** 9,
         'p'                             : 0.9,  # for bootstrap
@@ -115,7 +116,7 @@ def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
                                      validation_set_size=2 ** 10,
                                      dataset_settings=ds,
                                      random_seed=random_seed)
-    luigi.build([ESD], local_scheduler=True, workers=1, log_level='ERROR')
+    luigi.build([ESD], local_scheduler=True, workers=1, log_level='INFO')
     with ESD.output().open() as f:
         accuracy = dill.load(f)['accuracy']
 
@@ -127,7 +128,7 @@ def test_knn_accuracy_is_at_least_prob_of_alternative_sample(random_seed, gs,
     # allow an envelope of 3% for randomness
     expected_accuracy = 0.5 + 0.5 * gs.probability_of_alternative_sample
 
-    assert expected_accuracy - 0.03 <= accuracy <= expected_accuracy + 0.03
+    assert expected_accuracy - 0.02 <= accuracy <= expected_accuracy + 0.02
 
 
 def delta_for_claimed_epsilon(clbd, claimed_epsilon):

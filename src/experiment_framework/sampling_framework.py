@@ -225,13 +225,13 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         req['samples_positive'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
-            random_seed=self.random_seed,
+            random_seed='training_positive_seed{}'.format(self.random_seed),
             generate_positive_samples=True,
             )
         req['samples_negative'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
-            random_seed=self.random_seed,
+            random_seed='training_negative_seed{}'.format(self.random_seed),
             generate_positive_samples=False,
             )
         self.reqs_ = req

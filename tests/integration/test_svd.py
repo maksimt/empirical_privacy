@@ -8,6 +8,10 @@ from empirical_privacy.row_distributed_svd import \
     svd_asymptotic_settings
 from experiment_framework.utils.python_helpers import load_from
 
+
+pytestmark = pytest.mark.skip("SVD tests deprecated")
+
+
 @pytest.fixture(scope='function')
 def ccc_kwargs(request):
     ds = {

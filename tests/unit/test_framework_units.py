@@ -112,6 +112,7 @@ def test_ccc_deterministic(random_seed, ):
     jobs = [
         ComputeOneBitKNNConvergence(
             dataset_settings=ds(),
+            min_samples=2 ** 7,
             n_max=2 ** 8,
             n_trials_per_training_set_size=5,
             validation_set_size=2 ** 8,
@@ -130,6 +131,7 @@ def test_bootstrap_deterministic():
     jobs = [
         OneBitAsymptoticAccuracy(
             dataset_settings=ds(),
+            min_samples=2 ** 7,
             n_max=2 ** 8,
             n_trials_per_training_set_size=5,
             validation_set_size=2 ** 8,
