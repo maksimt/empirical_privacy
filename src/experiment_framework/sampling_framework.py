@@ -148,13 +148,13 @@ class _EvaluateStatisticalDistance(
         reqs['samples_positive'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
-            random_seed='validation_seed{}_pos'.format(self.random_seed),
+            random_seed='validation_size{}_seed{}_pos'.format(self.validation_set_size, self.random_seed),
             generate_positive_samples=True,
             )
         reqs['samples_negative'] = self.samplegen(
             dataset_settings=self.dataset_settings,
             num_samples=int(round(self.validation_set_size / 2)),
-            random_seed='validation_seed{}_neg'.format(self.random_seed),
+            random_seed='validation_size{}_seed{}_neg'.format(self.validation_set_size,self.random_seed),
             generate_positive_samples=False,
             )
         self.reqs_ = reqs
@@ -225,13 +225,13 @@ class _FitModel(AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
         req['samples_positive'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
-            random_seed='training_positive_seed{}'.format(self.random_seed),
+            random_seed='training_positive_size{}_seed{}'.format(self.samples_per_class, self.random_seed),
             generate_positive_samples=True,
             )
         req['samples_negative'] = self.gen_samples_type(
             dataset_settings=self.dataset_settings,
             num_samples=self.samples_per_class,
-            random_seed='training_negative_seed{}'.format(self.random_seed),
+            random_seed='training_negative_size{}_seed{}'.format(self.samples_per_class, self.random_seed),
             generate_positive_samples=False,
             )
         self.reqs_ = req
