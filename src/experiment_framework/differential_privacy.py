@@ -22,7 +22,7 @@ class _ComputeBoundsForDelta(
 ):
     claimed_epsilon = luigi.FloatParameter()
 
-    n_trials_per_training_set_size = luigi.IntParameter()
+    confidence_interval_width = luigi.FloatParameter(default=1.0)
     n_max = luigi.IntParameter()
     min_samples = luigi.IntParameter(default=MIN_SAMPLES)
     dataset_settings = luigi.DictParameter()
@@ -41,7 +41,7 @@ class _ComputeBoundsForDelta(
         dataset_settings = dict(self.dataset_settings)
         dataset_settings['claimed_epsilon'] = self.claimed_epsilon
         reqs['asymptotic_accuracy'] = self.asymptotic_accuracy_computer(
-            n_trials_per_training_set_size=self.n_trials_per_training_set_size,
+            confidence_interval_width=self.confidence_interval_width,
             n_max=self.n_max,
             min_samples=self.min_samples,
             dataset_settings=dataset_settings,
@@ -56,10 +56,18 @@ class _ComputeBoundsForDelta(
     def run(self):
         _inputs = self.load_input_dict()
         statistical_distance = {
-            'lower_bound': accuracy_to_statistical_distance(
+            'lower_bound' : accuracy_to_statistical_distance(
                 _inputs['asymptotic_accuracy']['lower_bound']),
-            'upper_bound': accuracy_to_statistical_distance(
+            'upper_bound' : accuracy_to_statistical_distance(
                 _inputs['asymptotic_accuracy']['upper_bound']),
+            'lower_bound_slack': accuracy_to_statistical_distance(
+                _inputs['asymptotic_accuracy']['lower_bound_slack']),
+            'upper_bound_slack': accuracy_to_statistical_distance(
+                _inputs['asymptotic_accuracy']['upper_bound_slack']),
+            'lb_one_sided': accuracy_to_statistical_distance(
+                _inputs['asymptotic_accuracy']['lb_one_sided']),
+            'ub_one_sided': accuracy_to_statistical_distance(
+                _inputs['asymptotic_accuracy']['ub_one_sided']),
         }
         epsilon = self.claimed_epsilon
         delta = {

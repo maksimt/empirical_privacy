@@ -11,7 +11,8 @@ from experiment_framework.privacy_estimator_mixins import DensityEstFitterMixin,
     ExpectationFitterMixin, KNNFitterMixin
 from experiment_framework.utils.python_helpers import load_from
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
-    EvaluateStatisticalDistance, ComputeConvergenceCurve
+    EvaluateStatisticalDistance
+from experiment_framework.compute_convergence_curve import ComputeConvergenceCurve
 from empirical_privacy.config import MIN_SAMPLES
 
 
@@ -72,12 +73,13 @@ def asymptotics_for_multiple_docs(
         n_bootstraps=100,
         p=0.99,
         n_docs=10,
-        n_trials_per_training_set_size=10,
+        confidence_interval_width=1,
         validation_set_size=64,
         n_max=256,
         min_samples=MIN_SAMPLES,
         in_memory=False,
-        knn_curve_model='gyorfi'
+        knn_curve_model='gyorfi',
+        aa_factory_kwargs={}
 ):
     if 'doc_ind' in dataset_settings:
         logging.warning('doc_ind is overwritten; if you need granular control'
@@ -87,7 +89,7 @@ def asymptotics_for_multiple_docs(
     CCCType = build_convergence_curve_pipeline(GS, gen_sample_kwargs,
                                                fitter_kwargs, fitter)
 
-    class AAType(ComputeAsymptoticAccuracy(CCCType)):
+    class AAType(ComputeAsymptoticAccuracy(CCCType, **aa_factory_kwargs)):
         pass
 
     AAs = []
@@ -97,7 +99,7 @@ def asymptotics_for_multiple_docs(
         AAs.append(AAType(
             n_bootstraps=n_bootstraps,
             confidence_interval_prob=p,
-            n_trials_per_training_set_size=n_trials_per_training_set_size,
+            confidence_interval_width=confidence_interval_width,
             n_max=n_max,
             min_samples=min_samples,
             dataset_settings=ds,

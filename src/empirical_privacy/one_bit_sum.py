@@ -5,7 +5,8 @@ from scipy.stats import binom, norm
 
 from experiment_framework.privacy_estimator_mixins import KNNFitterMixin
 from experiment_framework.sampling_framework import GenSamples, GenSample, FitModel, \
-    EvaluateStatisticalDistance, ComputeConvergenceCurve
+    EvaluateStatisticalDistance
+from experiment_framework.compute_convergence_curve import ComputeConvergenceCurve
 from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 
 

@@ -23,7 +23,7 @@ def test_asymptotic_generator(neighbor_method):
         'fitter'             : 'knn',
         'fitter_kwargs'      : {'neighbor_method': neighbor_method},
         'n_docs'                : 1,
-        'n_trials_per_training_set_size': 5,
+        'confidence_interval_width': 1.0,
         'n_max'              : 2**9,
         'validation_set_size': 2**5
     }

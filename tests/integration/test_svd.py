@@ -22,7 +22,7 @@ def ccc_kwargs(request):
         'SVD_k'        : 5
         }
     return {
-        'n_trials_per_training_set_size': 3,
+        'confidence_interval_width': 3,
         'n_max'                         : 2**9,
         'dataset_settings'              : ds,
         'validation_set_size'           : 8
@@ -76,7 +76,7 @@ def test_asymptotic_accuracy():
         'SVD_k'        : 5
     }
     ccc_kwargs = {
-        'n_trials_per_training_set_size': 20,
+        'confidence_interval_width': 20,
         'n_max'                         : 2**9,
         'dataset_settings'              : ds,
         'validation_set_size'           : 128

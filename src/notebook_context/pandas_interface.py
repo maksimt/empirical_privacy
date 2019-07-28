@@ -6,7 +6,14 @@ import pandas as pd
 
 from experiment_framework.asymptotic_analysis import _ComputeAsymptoticAccuracy
 from experiment_framework.utils.python_helpers import _flatten_dict
-from experiment_framework.sampling_framework import _ComputeConvergenceCurve
+from experiment_framework.compute_convergence_curve import _ComputeConvergenceCurve
+
+
+def CCCS_for_AA(AA: _ComputeAsymptoticAccuracy):
+    assert AA.complete(), 'CCCs only known when an AA is complete'
+    with AA.output().open() as f:
+        res = dill.load(f)
+    return [AA.CCC_job(i) for i in range(res['n_curves_done'])]
 
 
 def load_completed_CCCs_into_dataframe(
@@ -18,15 +25,13 @@ def load_completed_CCCs_into_dataframe(
             with CCC.output().open() as f:
                 dat = dill.load(f)
             as_dict = _flatten_dict(CCC.param_kwargs)
-            S = dat['accuracy_matrix']
-            tss = dat['training_set_sizes']
-            (ntri, nsamp) = S.shape
-            for tri in range(ntri):
-                for samp_i in range(nsamp):
+            tss_accuracy = dat['training_set_size_to_accuracy']
+            for tss, accuracies in tss_accuracy.items():
+                for (tri, accuracy) in enumerate(accuracies):
                     rtv_dict = copy.deepcopy(as_dict)
                     rtv_dict['trial'] = tri
-                    rtv_dict['training_set_size'] = tss[samp_i]
-                    rtv_dict['classifier_accuracy'] = S[tri, samp_i]
+                    rtv_dict['training_set_size'] = tss
+                    rtv_dict['classifier_accuracy'] = accuracy
                     res.append(rtv_dict)
     DF = pd.DataFrame.from_dict(res)
     return DF

@@ -1,4 +1,3 @@
-import itertools
 from abc import abstractmethod, ABC
 from collections import namedtuple
 import six
@@ -13,103 +12,6 @@ from experiment_framework.utils.luigi_target_mixins import AutoLocalOutputMixin,
     LoadInputDictMixin, DeleteDepsRecursively
 from experiment_framework.utils.python_helpers import load_from
 from experiment_framework.utils.calculations import accuracy_to_statistical_distance
-
-
-def ComputeConvergenceCurve(
-        compute_stat_dist: 'EvaluateStatisticalDistance') \
-        -> '_ComputeConvergenceCurve':
-    class T(_ComputeConvergenceCurve):
-        pass
-
-    T.compute_stat_dist = compute_stat_dist
-    return T
-
-
-_CP = namedtuple('CurvePoint', ['trial', 'training_set_size'])
-
-
-class _ComputeConvergenceCurve(
-    AutoLocalOutputMixin(base_path=LUIGI_COMPLETED_TARGETS_DIR),
-    LoadInputDictMixin,
-    DeleteDepsRecursively,
-    luigi.Task,
-    ABC
-    ):
-    n_trials_per_training_set_size = luigi.IntParameter()
-    n_max = luigi.IntParameter()
-    min_samples = luigi.IntParameter(default=MIN_SAMPLES)
-
-    dataset_settings = luigi.DictParameter()
-    validation_set_size = luigi.IntParameter(default=200)
-    in_memory = luigi.BoolParameter(default=False)
-
-    @property
-    def priority(self):
-        """
-        The priority of a particular CCC. Higher is better.
-        1. Lower n_max have higher priority
-        2. Lower n_trials have higher priority
-        """
-        return 100*1/self.n_max + 1*1/self.n_trials_per_training_set_size
-
-    @property
-    def pow_min(self):
-        return np.floor(np.log(self.min_samples) / np.log(SAMPLES_BASE)
-                        + np.spacing(1)).astype(np.int)
-
-    @property
-    def n_steps(self):
-        pow_max = np.floor(np.log(self.n_max) / np.log(SAMPLES_BASE)
-                           + np.spacing(1)).astype(np.int)
-        n_steps = pow_max - self.pow_min + 1
-        assert n_steps > 0 , 'n_steps is {} which results in no ' \
-                             'samples.'.format(n_steps)
-        return n_steps
-
-    @property
-    def _training_set_sizes(self):
-        return np.logspace(start=self.pow_min,
-                           stop=self.pow_min + self.n_steps - 1,
-                           num=self.n_steps,
-                           dtype=int, base=SAMPLES_BASE)
-
-    def requires(self):
-        reqs = {}
-        for training_set_size, trial in itertools.product(
-                self._training_set_sizes,
-                range(self.n_trials_per_training_set_size)
-                ):
-            reqs[_CP(trial, training_set_size)] = \
-                self.compute_stat_dist(
-                    dataset_settings=self.dataset_settings,
-                    training_set_size=training_set_size,
-                    validation_set_size=self.validation_set_size,
-                    random_seed='trial{}'.format(trial),
-                    in_memory=self.in_memory
-                    )
-        self.reqs_ = reqs
-        if self.in_memory:
-            return {}
-        return reqs
-
-    def run(self):
-        _inputs = self.compute_or_load_requirements()
-
-        tss = self._training_set_sizes
-        accuracy_matrix = np.empty(
-            (self.n_trials_per_training_set_size, self.n_steps))
-
-        for training_set_size, trial in itertools.product(
-                tss,
-                range(self.n_trials_per_training_set_size)
-                ):
-            col = np.argwhere(tss == training_set_size)[0, 0]
-            accuracy_matrix[trial, col] = _inputs[_CP(trial, training_set_size)]['accuracy']
-
-        self.output_ = {'accuracy_matrix': accuracy_matrix,
-                       'training_set_sizes':tss}
-        with self.output().open('wb') as f:
-            dill.dump(self.output_, f, 2)
 
 
 def EvaluateStatisticalDistance(samplegen: '_GenSamples',
@@ -376,7 +278,7 @@ class GenSample(
 
 def GenSamples(gen_sample_type, x_concatenator=np.concatenate,
                y_concatenator=np.concatenate, generate_in_batch=False,
-               dont_write_output=False) -> _GenSamples:
+               dont_write_output=True) -> _GenSamples:
     """
     Parameters
     ----------

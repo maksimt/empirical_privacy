@@ -12,7 +12,8 @@ from empirical_privacy.row_distributed_common import \
 from experiment_framework.privacy_estimator_mixins import KNNFitterMixin,\
     ExpectationFitterMixin
 from experiment_framework.sampling_framework import GenSample, GenSamples, FitModel, \
-    EvaluateStatisticalDistance, ComputeConvergenceCurve
+    EvaluateStatisticalDistance
+from experiment_framework.compute_convergence_curve import ComputeConvergenceCurve
 from experiment_framework.asymptotic_analysis import ComputeAsymptoticAccuracy
 from experiment_framework.utils.helpers import AllAsymptotics
 
@@ -40,7 +41,7 @@ def svd_asymptotic_settings(n_docs=5,
             'neighbor_method': 'gyorfi'
             },
         'n_docs'                        : n_docs,
-        'n_trials_per_training_set_size': 30,
+        'confidence_interval_width': 30,
         'n_max'                         : n_max,
         'validation_set_size'           : 2**10
     }
@@ -267,7 +268,7 @@ class AsymptoticAnalysisSVD(ComputeAsymptoticAccuracy(CCCSVD)):
 def gen_SVD_asymptotics_for_multiple_docs(n_bootstraps=100,
                                           p=0.99,
                                           n_docs=10,
-                                          n_trials_per_training_set_size=3,
+                                          confidence_interval_width=3,
                                           validation_set_size=64,
                                           n_max=256,
                                           dataset_settings=None,
@@ -283,7 +284,7 @@ def gen_SVD_asymptotics_for_multiple_docs(n_bootstraps=100,
         AAs.append(AAType(
             n_bootstraps=n_bootstraps,
             confidence_interval_prob=p,
-            n_trials_per_training_set_size=n_trials_per_training_set_size,
+            confidence_interval_width=confidence_interval_width,
             n_max=n_max,
             dataset_settings=ds,
             validation_set_size=validation_set_size

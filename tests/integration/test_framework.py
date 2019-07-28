@@ -8,11 +8,11 @@ import time
 
 from empirical_privacy import one_bit_sum
 from empirical_privacy.config import MIN_SAMPLES, SAMPLES_BASE
+from experiment_framework.sampling_framework import GenSamples
 from experiment_framework.utils.helpers import build_convergence_curve_pipeline, \
     AllAsymptotics
-from notebook_context.pandas_interface import load_completed_CCCs_into_dataframe
 from experiment_framework.utils.python_helpers import load_from
-from experiment_framework.sampling_framework import GenSamples
+from notebook_context.pandas_interface import load_completed_CCCs_into_dataframe
 
 
 @pytest.fixture(scope='session')
@@ -71,7 +71,7 @@ def test_compute_stat_dist(ds_rs):
 @pytest.fixture(scope='session')
 def ccc_kwargs(ds_rs):
     return {
-        'n_trials_per_training_set_size': 3,
+        'confidence_interval_width': 3,
         'n_max'                         : 2 ** 9,
         'dataset_settings'              : ds_rs['dataset_settings'],
         'validation_set_size'           : 10
@@ -89,7 +89,7 @@ def simple_ccc(ccc_kwargs):
 
 @pytest.fixture(scope='session')
 def expected_accuracy_matrix_shape(ccc_kwargs):
-    n_row = ccc_kwargs['n_trials_per_training_set_size']
+    n_row = ccc_kwargs['confidence_interval_width']
     pow_min = np.floor(np.log(MIN_SAMPLES) / np.log(SAMPLES_BASE)
                        + np.spacing(1)).astype(np.int)
     pow_max = np.floor(np.log(ccc_kwargs['n_max']) / np.log(SAMPLES_BASE)
@@ -188,9 +188,10 @@ def test_asymptotic_generator(ds_rs):
     All = AllAsymptotics(
         gen_sample_path='empirical_privacy.one_bit_sum.GenSampleOneBitSum',
         dataset_settings=ds_rs['dataset_settings'],
-        asymptotic_settings={'n_docs': 1,
-                             'n_max': 2 ** 9,
-                             'knn_curve_model': 'sqrt'
+        asymptotic_settings={
+            'n_docs'         : 1,
+            'n_max'          : 2 ** 9,
+            'knn_curve_model': 'sqrt'
         },
 
     )
@@ -255,3 +256,20 @@ def test_attr_string_handling(ds_rs):
     GSs = GenSamples(one_bit_sum.GenSampleOneBitSum,
                      x_concatenator='numpy.concatenate')
     assert hasattr(GSs.x_concatenator, '__call__')
+
+
+def test_adaptive_ccc(ds_rs):
+    ccc_kwargs = {
+        'confidence_interval_width': 3,
+        'min_samples'                  : 2 ** 8,
+        'n_max'                         : 2 ** 9,
+        'dataset_settings'              : ds_rs['dataset_settings'],
+        'validation_set_size'           : 10,
+        'in_memory'                     : True
+
+    }
+    CC = one_bit_sum.ComputeOneBitKNNConvergence(**ccc_kwargs)
+    luigi.build([CC], local_scheduler=True, workers=8, log_level='INFO')
+    with CC.output().open() as f:
+        res = dill.load(f)['training_set_size_to_accuracy']
+    assert len(res[2**8]) == len(res[2**9])*2

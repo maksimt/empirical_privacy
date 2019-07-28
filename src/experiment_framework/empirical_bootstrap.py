@@ -70,3 +70,44 @@ class SampleGenerator:
     def new_bootstrap_sample(self):
         data = resample(self.data, random_state=self._random_state)
         return data
+
+
+class TransformingSampleGenerator(SampleGenerator):
+    def __init__(self, data, transform, seed=0):
+        super().__init__(data, seed)
+        self.transform = transform
+        self.sample_mean = self.transform(self.data)
+
+    def new_bootstrap_sample(self):
+        data = resample(*self.data, random_state=self._random_state)
+        return data
+
+    def new_bootstrap_mean(self):
+        data = self.new_bootstrap_sample()
+        transformed = self.transform(data)
+        return np.mean(transformed)
+
+
+class PerTrainingSizeSampleGenerator(SampleGenerator):
+    def __init__(self, data, transform, reshape=None, seed=0):
+        self.data = data
+        self._random_state = np.random.RandomState(seed)
+        self.transform = transform
+        self.reshape = reshape
+        data_ = self.data
+        if self.reshape is not None:
+            data_ = self.reshape(data)
+        self.sample_mean = self.transform(data_)
+
+    def new_bootstrap_sample(self):
+        data_ = {ts: resample(self.data[ts], random_state=self._random_state)
+                for ts in self.data.keys()
+                }
+        if self.reshape is not None:
+            data_ = self.reshape(data_)
+        return data_
+
+    def new_bootstrap_mean(self):
+        data = self.new_bootstrap_sample()
+        transformed = self.transform(data)
+        return np.mean(transformed)

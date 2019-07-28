@@ -1,5 +1,6 @@
 import collections
 import os
+import logging
 
 import dill
 import luigi
@@ -82,8 +83,11 @@ class LoadInputDictMixin(luigi.Task):
     @staticmethod
     def _populate_obj(obj):
         if hasattr(obj, 'complete') and obj.complete():
-            with obj.output().open() as f:
-                return dill.load(f)
+            try:
+                with obj.output().open() as f:
+                    return dill.load(f)
+            except Exception as e:
+                logging.exception(e)
         if hasattr(obj, 'requires'):
             obj.requires()  # to get the object to populate reqs_
             obj.run()

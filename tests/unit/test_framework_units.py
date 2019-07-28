@@ -29,7 +29,7 @@ def ds():
 
 def get_res(job):
     cleanup()
-    luigi.build([job], local_scheduler=True, workers=1, log_level='ERROR')
+    luigi.build([job], local_scheduler=True, workers=1, log_level='INFO')
     with job.output().open() as f:
         res = dill.load(f)
         return res
@@ -114,17 +114,17 @@ def test_ccc_deterministic(random_seed, ):
             dataset_settings=ds(),
             min_samples=2 ** 7,
             n_max=2 ** 8,
-            n_trials_per_training_set_size=5,
+            confidence_interval_width=1,
             validation_set_size=2 ** 8,
-            in_memory=in_memory
-        ) for (in_memory, _) in zip([True, False], range(3))
+            in_memory=True
+        ) for _ in range(3)
     ]
     res = []
     for job in jobs:
         res.append(get_res(job))
     assert len(res) >= 2
     for i in range(1, len(res)):
-        np.allclose(res[i - 1]['accuracy_matrix'], res[i]['accuracy_matrix'])
+        res[i - 1]['training_set_size_to_accuracy'] == res[i]['training_set_size_to_accuracy']
 
 
 def test_bootstrap_deterministic():
@@ -133,13 +133,12 @@ def test_bootstrap_deterministic():
             dataset_settings=ds(),
             min_samples=2 ** 7,
             n_max=2 ** 8,
-            n_trials_per_training_set_size=5,
             validation_set_size=2 ** 8,
             n_bootstraps=30,
             confidence_interval_prob=0.9,
             knn_curve_model='sqrt',
-            in_memory=in_memory
-        ) for (in_memory, _) in product([True, False], range(3))
+            in_memory=True
+        ) for _ in range(3)
     ]
     res = []
     for job in jobs:

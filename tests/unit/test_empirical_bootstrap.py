@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from scipy.stats import norm
 
-from experiment_framework.empirical_bootstrap import EmpiricalBootstrap, SampleGenerator
+from experiment_framework.empirical_bootstrap import EmpiricalBootstrap,\
+    SampleGenerator, TransformingSampleGenerator
 
 
 def y_shape():
@@ -74,3 +75,23 @@ def test_bootstrap_implementation(random_seed,
         errors.append(error)
 
     assert np.all(np.diff(errors) < 0)
+
+
+def test_transforming_sample_generator():
+    transform = lambda x: 2*x[0] - x[1]
+    data = [np.ones((5,)), 2*np.ones((5,))]
+    EB = EmpiricalBootstrap(sample_generator=TransformingSampleGenerator(
+        data=data, transform=transform
+    ))
+    new_data = EB.get_bootstrap_means(5)
+    assert np.allclose(new_data, np.zeros(5,))
+
+
+def test_random_state_changes():
+    SG = SampleGenerator(data=[1,2,3])
+    rs1 = str(SG._random_state.get_state())
+    rs1_1 = str(SG._random_state.get_state())
+    assert rs1 == rs1_1
+    SG.new_bootstrap_sample()
+    rs2 = str(SG._random_state.get_state())
+    assert rs1 != rs2
